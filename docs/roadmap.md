@@ -62,15 +62,17 @@ using open-source Bluetooth tooling.
   agent); in-UI **volume deferred** to v2 (use the speaker's buttons); `fmradiod`
   talks to BlueZ over D-Bus via **`dbus-fast`** (async). Split into **two changes**:
   a derisk spike first, then the build.
-- **`derisk-bluetooth-audio` — SCAFFOLDED** (`openspec/changes/derisk-bluetooth-audio/`,
-  apply-ready): prove A2DP on this Pi (`bluez-alsa` primary, **PipeWire fallback
-  pre-authorized**), measure CPU/latency under concurrent demod load, produce a
-  go/no-go verdict + tooling choice. Mirrors `derisk-hd-radio`. **Then**
-  `build-bluetooth-output`: output-router + BlueZ D-Bus controller + in-browser
-  pairing UI + auto-reconnect.
-- **Open risks the spike resolves:** `bluealsa` availability on Debian 13; onboard
-  BT bring-up on DietPi (rfkill/firmware); BT ↔ 2.4 GHz Wi-Fi coexistence; CPU
-  headroom for demod + SBC encode on 512 MB / quad-A53.
+- **`derisk-bluetooth-audio` — DONE, verdict FIRST-CLASS** (`bluez-alsa`; PipeWire
+  fallback not needed). Live HD radio played out an Echo Pop over onboard BT at
+  **~58% CPU idle**, ~306 MB RAM free, SBC 48k/stereo (no resample), no dropouts.
+  Build log: `docs/bluetooth-spike.md`. All the spike risks resolved (stack
+  installs from the trixie repo; onboard BT comes up clean; no Wi-Fi coexistence
+  glitch; comfortable concurrent CPU). Heatsink recommended (deferred).
+- **Next: `build-bluetooth-output`** (not yet scaffolded) — the full feature on the
+  proven path: exclusive output-router (web ⇄ BT), BlueZ D-Bus controller +
+  `NoInputNoOutput` pairing agent, in-browser scan/pair/connect UI, auto-reconnect.
+  Writes PCM to `bluealsa:DEV=<MAC>,PROFILE=a2dp`. The Pi already has the stack
+  installed + the Echo paired (head start).
 
 ---
 

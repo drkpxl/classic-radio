@@ -58,4 +58,21 @@ Use a known-good speaker; document scan → pair → trust → connect. Note the
 
 ## Outcome (verdict)
 
-_To be recorded at apply time, once the spike has run and the numbers are in hand: the **first-class / best-effort / drop** verdict, the **chosen tooling** (`bluez-alsa` or PipeWire), the measured CPU/RAM/temperature under concurrent load, latency/reconnect notes, and the implications for the `build-bluetooth-output` design (the ALSA sink target and CPU budget for the exclusive-output model)._
+**Verdict: FIRST-CLASS.** Bluetooth A2DP speaker output is viable on the Pi 3A+ with comfortable margin. **Chosen tooling: `bluez-alsa`** (PipeWire fallback not needed).
+
+Evidence (Echo Pop `50:99:5A:21:F8:BB`, `bluez 5.82` + `bluez-alsa-utils 4.3.1` on Debian 13 trixie):
+- **Stack installed cleanly from the trixie apt repo** — no source build, no PipeWire fallback. Onboard BT controller ("fmradio") powered up with the A2DP **source** role; `bluealsa` already ships configured `-p a2dp-source -p a2dp-sink`.
+- **End-to-end proven:** test tones, then **live KBCO HD0 audio**, played out the Echo continuously — user-confirmed, no underruns/errors.
+- **Codec:** A2DP **SBC, S16_LE, 2ch, 48000 Hz** — identical to `fmradiod`'s existing output, so the BT output path needs **no resample**.
+- **Concurrent resource use** (conservative upper bound: `nrsc5` HD decode + daemon MP3 encode + tap MP3 decode + SBC): system **~58% idle**, load ~1.4 of 4 cores, **~306 MB RAM free**, **60–61 °C**. The production exclusive-BT path (demod → PCM → SBC, no MP3 round-trip) will be lighter.
+- **Volume** is controllable from the Pi via `bluealsactl volume <path> 0–127` (AVRCP) — set to 60% in testing. Useful for the deferred in-UI volume.
+
+Caveats:
+- `get_throttled=0xd0008` showed the **soft temperature limit currently active at ~60 °C** plus sticky under-voltage/throttle bits from earlier load. Not hard-throttling (58% idle). **A heatsink + a solid 5 V supply are recommended** (user is adding a heatsink later — not a blocker).
+- Reconnect-on-drop behavior was not stress-tested; handle it in the build.
+
+Implications for `build-bluetooth-output`:
+- **Tooling confirmed:** BlueZ + `bluez-alsa`. The output-mode seam's `bluetooth` sink writes PCM to `bluealsa:DEV=<MAC>,PROFILE=a2dp` (48k/stereo/S16_LE, no resample).
+- **CPU budget is comfortable** for the exclusive-output model; `taskset`-pinning `nrsc5` is optional insurance, not required.
+- The Pi already has the stack installed + the Echo paired/trusted — a running head start for the build.
+- Pairing gotcha for the in-browser flow: discovery must stay active and an agent must be registered **in the same session** as `pair`, or the device ages out ("not available"). The daemon's BlueZ D-Bus controller must hold discovery + a `NoInputNoOutput` agent across the pair call.
