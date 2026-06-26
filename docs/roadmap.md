@@ -56,11 +56,21 @@ using open-source Bluetooth tooling.
   new web API endpoints + UI controls, and a local decode→sink path
   (`ffmpeg → ALSA → bluealsa A2DP`). The daemon stays the single source of truth;
   output selection rides the same EventBus so the TFT/web reflect it.
-- **Open questions / risks:** `bluealsa` vs PipeWire on DietPi; A2DP/SBC latency
-  and whether lip-sync matters (it doesn't for radio); pairing UX over a web UI
-  (PIN/just-works); reconnect/handover when the speaker drops; CPU headroom on the
-  3A+ (SDR demod already uses ~1 core). **Needs its own `derisk-*` spike before a
-  full change** — confirm the BlueZ + bluealsa A2DP path works headless on this Pi.
+- **Decisions locked (2026-06-26):** exclusive output (web **or** BT, one at a
+  time — a selectable sink on the tuner that later also absorbs the 3.5 mm jack);
+  **full in-browser pairing** (scan/pair/trust/forget + a `NoInputNoOutput` BlueZ
+  agent); in-UI **volume deferred** to v2 (use the speaker's buttons); `fmradiod`
+  talks to BlueZ over D-Bus via **`dbus-fast`** (async). Split into **two changes**:
+  a derisk spike first, then the build.
+- **`derisk-bluetooth-audio` — SCAFFOLDED** (`openspec/changes/derisk-bluetooth-audio/`,
+  apply-ready): prove A2DP on this Pi (`bluez-alsa` primary, **PipeWire fallback
+  pre-authorized**), measure CPU/latency under concurrent demod load, produce a
+  go/no-go verdict + tooling choice. Mirrors `derisk-hd-radio`. **Then**
+  `build-bluetooth-output`: output-router + BlueZ D-Bus controller + in-browser
+  pairing UI + auto-reconnect.
+- **Open risks the spike resolves:** `bluealsa` availability on Debian 13; onboard
+  BT bring-up on DietPi (rfkill/firmware); BT ↔ 2.4 GHz Wi-Fi coexistence; CPU
+  headroom for demod + SBC encode on 512 MB / quad-A53.
 
 ---
 
