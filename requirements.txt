@@ -1,0 +1,9 @@
+starlette
+uvicorn
+pyyaml
+# TFT readout. Pillow renders the frame (cross-platform); Blinka + rgb-display
+# drive the ST7789 and only work on the Pi — imported lazily, only when the
+# display is enabled, so a Mac dev box never needs them at runtime.
+Pillow>=10.1
+adafruit-blinka
+adafruit-circuitpython-rgb-display

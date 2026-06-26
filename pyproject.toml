@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fmradiod"
+version = "0.1.0"
+description = "Headless FM / HD Radio / NOAA Weather radio daemon for the Raspberry Pi 3A+"
+requires-python = ">=3.11"
+dependencies = ["starlette", "uvicorn", "pyyaml", "Pillow>=10.1"]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio", "httpx"]
+# Pi-only TFT driver stack (Blinka + ST7789). Imported lazily, only when the
+# display is enabled; the Pi installs these (see requirements.txt).
+display = ["adafruit-blinka", "adafruit-circuitpython-rgb-display"]
+
+[tool.setuptools.packages.find]
+include = ["fmradiod*"]
+
+[tool.setuptools.package-data]
+"fmradiod.display" = ["fonts/*.ttf"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

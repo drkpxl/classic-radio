@@ -1,0 +1,16 @@
+[Unit]
+Description=fmradiod — FM / HD Radio / NOAA Weather radio daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/fmradio
+ExecStart=/root/fmradio/.venv/bin/python -m fmradiod
+Restart=always
+RestartSec=3
+# Clean SIGTERM teardown is handled by uvicorn -> app lifespan -> tuner.stop().
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

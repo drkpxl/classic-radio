@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>fmradiod</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at 50% 30%, #f3ede1 0%, #e3d8c4 55%, #d2c4ab 100%);
+    font-family: "Futura", "Century Gothic", "Helvetica Neue", Arial, sans-serif;
+    padding: 40px 20px;
+  }
+  .radio {
+    position: relative; width: 600px; max-width: 100%;
+    border-radius: 26px 26px 20px 20px; padding: 30px 30px 26px;
+    background: linear-gradient(180deg, #b9743e 0%, #9c5a2b 45%, #834a22 100%);
+    box-shadow: inset 0 3px 0 rgba(255,225,190,0.55), inset 0 -10px 22px rgba(0,0,0,0.45),
+      inset 0 0 0 3px rgba(60,30,12,0.35), 0 28px 50px rgba(60,35,15,0.45), 0 8px 16px rgba(0,0,0,0.3);
+  }
+  .radio::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    opacity: 0.35; mix-blend-mode: multiply;
+    background: repeating-linear-gradient(95deg, rgba(60,30,10,0) 0px, rgba(60,30,10,0.18) 2px, rgba(255,210,160,0.10) 4px, rgba(60,30,10,0) 9px);
+  }
+  .face { position: relative; display: flex; gap: 22px; align-items: stretch; }
+
+  /* Left: album art / speaker */
+  .speaker {
+    flex: 1.1; border-radius: 14px; padding: 14px; min-height: 280px;
+    background: linear-gradient(160deg, #2a2724 0%, #1a1816 100%);
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.8), inset 0 0 0 2px rgba(255,200,140,0.12), 0 1px 0 rgba(255,210,160,0.25);
+    display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;
+  }
+  .grille {
+    position: absolute; inset: 14px; border-radius: 8px;
+    background-color: #b99a5f; background-image: radial-gradient(circle, #d9bd84 28%, transparent 30%);
+    background-size: 11px 11px; box-shadow: inset 0 0 22px rgba(0,0,0,0.55), inset 0 2px 4px rgba(0,0,0,0.6);
+  }
+  .art {
+    position: relative; max-width: 100%; max-height: 252px; border-radius: 6px; display: none;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,0,0,0.5);
+  }
+  .badge {
+    position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%);
+    padding: 4px 14px; border-radius: 20px; background: linear-gradient(180deg,#e9e2d2,#bfb39a);
+    color: #4a3a22; font-size: 10px; font-weight: 700; letter-spacing: 3px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.7); z-index: 2;
+  }
+
+  /* Right: controls */
+  /* min-width:0 lets the flex children shrink so long titles ellipsis-clip
+     instead of stretching the whole cabinet. */
+  .panel { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+  .speaker { min-width: 0; }
+
+  .dial {
+    border-radius: 10px; padding: 12px 14px 10px; position: relative; overflow: hidden;
+    background: linear-gradient(180deg, #f7eecb 0%, #e7d49a 100%);
+    box-shadow: inset 0 2px 5px rgba(120,90,40,0.45), inset 0 0 0 2px rgba(120,80,30,0.4), 0 1px 0 rgba(255,230,180,0.5);
+  }
+  .band { font-size: 9px; letter-spacing: 2px; color: #7a5a22; font-weight: 700; display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .scale { position: relative; height: 34px; border-top: 1px solid rgba(120,80,30,0.5); border-bottom: 1px solid rgba(120,80,30,0.5); }
+  .ticks { display: flex; justify-content: space-between; align-items: flex-end; height: 100%; padding: 0 2px; }
+  .num { font-size: 11px; color: #6e4d18; font-weight: 700; position: relative; padding-bottom: 2px; }
+  .num::before { content: ""; position: absolute; top: -16px; left: 50%; width: 1px; height: 9px; background: #6e4d18; }
+  .needle { position: absolute; top: -2px; bottom: -2px; left: 50%; width: 3px; border-radius: 2px;
+    background: linear-gradient(180deg,#ff5b3c,#c4231a); box-shadow: 0 0 6px rgba(255,60,40,0.8); transition: left 0.35s ease; }
+  .wxtag { position: absolute; top: 4px; right: 8px; font-size: 9px; font-weight: 800; letter-spacing: 1px;
+    color: #fff; background: #2f6db0; padding: 2px 6px; border-radius: 4px; display: none; }
+
+  .nowplaying { color: #f4e2c4; text-shadow: 0 1px 1px rgba(0,0,0,0.5); min-height: 38px; padding: 0 4px; }
+  .np-title { font-size: 15px; font-weight: 800; letter-spacing: .3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .np-artist { font-size: 12px; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+  .preset {
+    border: none; font: inherit; cursor: pointer; border-radius: 7px; padding: 8px 4px 6px; position: relative;
+    background: linear-gradient(180deg, #efe7d3 0%, #d8c39a 100%); color: #5a4220;
+    box-shadow: 0 3px 5px rgba(0,0,0,0.45), inset 0 2px 0 rgba(255,255,255,0.75), inset 0 -3px 5px rgba(120,80,30,0.4);
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    transition: transform 0.06s ease, box-shadow 0.06s ease;
+  }
+  .preset .freq { font-size: 15px; font-weight: 800; letter-spacing: .5px; }
+  .preset .tag { font-size: 9px; font-weight: 700; letter-spacing: 1px; opacity: 0.7; }
+  .preset .pled { position: absolute; top: 5px; right: 6px; width: 5px; height: 5px; border-radius: 50%;
+    background: #7a1808; box-shadow: inset 0 1px 1px rgba(0,0,0,0.4); }
+  .preset:active { transform: translateY(2px); }
+  .preset.active { background: linear-gradient(180deg, #d8c39a 0%, #c2aa78 100%); color: #3d2c12;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.4), inset 0 2px 6px rgba(90,60,20,0.6); }
+  .preset.active .pled { background: radial-gradient(circle at 35% 35%, #ff8d6e, #e23b1e 70%); box-shadow: 0 0 6px 1px rgba(255,70,40,0.9); }
+
+  .footrow { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding: 4px 4px 0; }
+  .station { font-size: 11px; letter-spacing: .5px; font-weight: 700; color: #f4e2c4; text-shadow: 0 1px 1px rgba(0,0,0,0.5);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%; }
+  .power { display: flex; align-items: center; gap: 7px; cursor: pointer; border: none; background: none;
+    font-size: 10px; letter-spacing: 2px; font-weight: 700; color: #f4e2c4; text-shadow: 0 1px 1px rgba(0,0,0,0.5); }
+  .led { width: 12px; height: 12px; border-radius: 50%; background: #5a1208;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.6); transition: box-shadow .3s, background .3s; }
+  .power.on .led { background: radial-gradient(circle at 35% 35%, #ff8d6e, #e23b1e 60%, #7a1808);
+    box-shadow: 0 0 10px 2px rgba(255,70,40,0.85), inset 0 1px 1px rgba(255,255,255,0.5); animation: glow 2.6s ease-in-out infinite; }
+  @keyframes glow { 0%,100% { box-shadow: 0 0 8px 2px rgba(255,70,40,0.7);} 50% { box-shadow: 0 0 13px 4px rgba(255,90,55,1);} }
+  .status { font-size: 9px; letter-spacing: 1px; opacity: 0.7; color: #f4e2c4; margin-left: 6px; }
+</style>
+</head>
+<body>
+  <div class="radio">
+    <div class="face">
+      <div class="speaker">
+        <div class="grille" id="grille"></div>
+        <img class="art" id="art" alt="album art">
+        <div class="badge">fmradiod</div>
+      </div>
+
+      <div class="panel">
+        <div class="dial">
+          <div class="band"><span>FM MHz</span><span id="wxlabel"></span></div>
+          <div class="scale">
+            <div class="ticks">
+              <span class="num">88</span><span class="num">92</span><span class="num">96</span>
+              <span class="num">100</span><span class="num">104</span><span class="num">108</span>
+            </div>
+            <div class="needle" id="needle"></div>
+          </div>
+          <div class="wxtag" id="wxtag">WX</div>
+        </div>
+
+        <div class="nowplaying">
+          <div class="np-title" id="npTitle">—</div>
+          <div class="np-artist" id="npArtist"></div>
+        </div>
+
+        <div class="presets" id="presets"></div>
+
+        <div class="footrow">
+          <div class="station" id="station">—</div>
+          <button class="power" id="power"><span class="led"></span><span id="powerText">OFF</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <audio id="player" preload="none"></audio>
+
+<script>
+  const els = {
+    presets: document.getElementById('presets'),
+    needle: document.getElementById('needle'),
+    station: document.getElementById('station'),
+    npTitle: document.getElementById('npTitle'),
+    npArtist: document.getElementById('npArtist'),
+    art: document.getElementById('art'),
+    grille: document.getElementById('grille'),
+    wxtag: document.getElementById('wxtag'),
+    wxlabel: document.getElementById('wxlabel'),
+    power: document.getElementById('power'),
+    powerText: document.getElementById('powerText'),
+    player: document.getElementById('player'),
+  };
+
+  let ringLen = 0;
+
+  function tagFor(p) {
+    if (p.mode === 'weather') return 'WX';
+    if (p.mode === 'hd') return p.hd_program ? 'HD' + (p.hd_program + 1) : 'HD';
+    return 'FM';
+  }
+  function freqLabel(p) {
+    return p.mode === 'weather' ? 'WX' : (Number(p.freq).toFixed(1));
+  }
+
+  function renderPresets(ring) {
+    els.presets.innerHTML = '';
+    ring.forEach(p => {
+      const b = document.createElement('button');
+      b.className = 'preset';
+      b.title = p.label;
+      b.innerHTML = '<span class="pled"></span>' +
+        '<span class="freq">' + freqLabel(p) + '</span>' +
+        '<span class="tag">' + tagFor(p) + '</span>';
+      b.addEventListener('click', () => tune(p.index));
+      els.presets.appendChild(b);
+    });
+    ringLen = ring.length;
+  }
+
+  function setNeedle(preset) {
+    if (preset.mode === 'weather') {
+      els.wxtag.style.display = 'block';
+      els.wxlabel.textContent = '162.55 WX';
+      els.needle.style.left = '50%';
+      els.needle.style.opacity = '0.25';
+    } else {
+      els.wxtag.style.display = 'none';
+      els.wxlabel.textContent = 'AM kHz';
+      els.needle.style.opacity = '1';
+      const f = Math.min(108, Math.max(88, Number(preset.freq)));
+      els.needle.style.left = (8 + ((f - 88) / 20) * 84) + '%';
+    }
+  }
+
+  function applyState(s) {
+    if (!s || !s.preset) return;
+    if (s.ring && s.ring.length !== ringLen) renderPresets(s.ring);
+
+    [...els.presets.children].forEach((b, i) => b.classList.toggle('active', i === s.preset.index));
+    setNeedle(s.preset);
+    els.station.textContent = s.preset.label;
+
+    const np = s.now_playing || {};
+    els.npTitle.textContent = np.title || np.label || s.preset.label;
+    els.npArtist.textContent = np.artist || '';
+
+    if (np.art) {
+      els.art.src = np.art;
+      els.art.style.display = 'block';
+      els.grille.style.display = 'none';
+    } else {
+      els.art.removeAttribute('src');
+      els.art.style.display = 'none';
+      els.grille.style.display = 'block';
+    }
+  }
+
+  // Autoplay is blocked, but any click is a valid user gesture — so a preset tap
+  // also starts playback. Once playing, switching presets leaves the audio element
+  // alone (the server swaps the source on the same connection).
+  function startAudio() {
+    if (!els.player.paused) return;
+    els.player.src = '/stream.mp3';
+    els.player.play().then(() => {
+      els.power.classList.add('on'); els.powerText.textContent = 'ON';
+    }).catch(() => {});
+  }
+  function stopAudio() {
+    els.player.pause(); els.player.removeAttribute('src'); els.player.load();
+    els.power.classList.remove('on'); els.powerText.textContent = 'OFF';
+  }
+
+  async function tune(index) {
+    startAudio();  // a preset tap counts as the gesture that unlocks audio
+    const r = await fetch('/api/tune/' + index, { method: 'POST' });
+    if (r.ok) applyState(await r.json());
+  }
+
+  els.power.addEventListener('click', () => {
+    if (els.player.paused) startAudio(); else stopAudio();
+  });
+
+  // Live state via SSE; fall back to a one-shot fetch if SSE drops.
+  async function loadOnce() {
+    try { applyState(await (await fetch('/api/state')).json()); } catch (e) {}
+  }
+  function connectSSE() {
+    const es = new EventSource('/api/events');
+    es.onmessage = (e) => { try { applyState(JSON.parse(e.data)); } catch (err) {} };
+    es.onerror = () => { es.close(); setTimeout(connectSSE, 2000); };
+  }
+  loadOnce();
+  connectSSE();
+</script>
+</body>
+</html>

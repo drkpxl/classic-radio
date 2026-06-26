@@ -1,0 +1,40 @@
+# fmradiod configuration — the preset ring + runtime settings.
+# Canonical copy lives in the repo and is mirrored to /root/fmradio on the Pi.
+# Rule of thumb when adding presets: default new ones to HD (mode: hd) where the
+# station broadcasts it; fall back to analog otherwise. Weather is always NBFM.
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+
+sdr:
+  gain: "auto"      # "auto" or a numeric tuner gain in dB
+  ppm: 0            # frequency correction (parts per million)
+
+audio:
+  bitrate: "256k"   # MP3 fan-out bitrate
+  sample_rate: 48000
+  channels: 2
+
+defaults:
+  start_preset: 0   # used on first run when no saved state exists
+
+display:              # on-device Mini PiTFT 1.14" (240x135 ST7789) readout
+  enabled: true       # on for the appliance (Pi). Mac dev has no panel → fail-soft to headless.
+  rotation: 90        # landscape orientation for the Mini PiTFT (0/90/180/270)
+  brightness: 1.0     # backlight level 0.0–1.0
+
+buttons:              # on-device Mini PiTFT 1.14" GPIO buttons → preset next/prev
+  enabled: true       # verified on hardware (top→next, bottom→prev). Mac/button-less Pi fail-soft regardless.
+  next_pin: 23        # BCM GPIO #23 (top button) → next preset
+  prev_pin: 24        # BCM GPIO #24 (bottom button) → prev preset
+  debounce_ms: 25     # stable interval a press must hold before it registers
+  poll_ms: 20         # input-loop poll interval (ms)
+
+presets:
+  - { label: "KBCO – World Class Rock", mode: hd,      freq: 97.3,    hd_program: 0 }
+  - { label: "Denver Weather (KEC76)",  mode: weather, freq: 162.550 }
+  - { label: "Channel 93.3 (KTCL)",     mode: hd,      freq: 93.3,    hd_program: 0 }
+  - { label: "Punk Tacos (KTCL HD2)",   mode: hd,      freq: 93.3,    hd_program: 1 }
+  - { label: "CPR News (KCFR)",         mode: hd,      freq: 90.1,    hd_program: 0 }
+  - { label: "103.5 The Fox (KRFX)",    mode: hd,      freq: 103.5,   hd_program: 0 }

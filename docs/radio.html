@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Classic AM/FM Tabletop Radio</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(ellipse at 50% 30%, #f3ede1 0%, #e3d8c4 55%, #d2c4ab 100%);
+    font-family: "Futura", "Century Gothic", "Helvetica Neue", Arial, sans-serif;
+    padding: 40px 20px;
+  }
+
+  /* ===== Cabinet ===== */
+  .radio {
+    position: relative;
+    width: 560px;
+    max-width: 100%;
+    border-radius: 26px 26px 20px 20px;
+    padding: 30px 30px 26px;
+    background:
+      linear-gradient(180deg, #b9743e 0%, #9c5a2b 45%, #834a22 100%);
+    box-shadow:
+      inset 0 3px 0 rgba(255,225,190,0.55),
+      inset 0 -10px 22px rgba(0,0,0,0.45),
+      inset 0 0 0 3px rgba(60,30,12,0.35),
+      0 28px 50px rgba(60,35,15,0.45),
+      0 8px 16px rgba(0,0,0,0.3);
+  }
+  /* wood grain overlay */
+  .radio::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0.35;
+    background:
+      repeating-linear-gradient(95deg,
+        rgba(60,30,10,0.0) 0px,
+        rgba(60,30,10,0.18) 2px,
+        rgba(255,210,160,0.10) 4px,
+        rgba(60,30,10,0.0) 9px);
+    mix-blend-mode: multiply;
+  }
+
+  .face {
+    position: relative;
+    display: flex;
+    gap: 22px;
+    align-items: stretch;
+  }
+
+  /* ===== Speaker grille (left) ===== */
+  .speaker {
+    flex: 1.25;
+    border-radius: 14px;
+    padding: 16px;
+    background:
+      linear-gradient(160deg, #2a2724 0%, #1a1816 100%);
+    box-shadow:
+      inset 0 2px 6px rgba(0,0,0,0.8),
+      inset 0 0 0 2px rgba(255,200,140,0.12),
+      0 1px 0 rgba(255,210,160,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .grille {
+    width: 100%;
+    height: 100%;
+    min-height: 230px;
+    border-radius: 8px;
+    background-color: #b99a5f;
+    background-image:
+      radial-gradient(circle, #d9bd84 28%, transparent 30%);
+    background-size: 11px 11px;
+    background-position: 0 0;
+    box-shadow:
+      inset 0 0 22px rgba(0,0,0,0.55),
+      inset 0 2px 4px rgba(0,0,0,0.6);
+    position: relative;
+  }
+  .grille::after {
+    /* subtle fabric shading */
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg, rgba(255,240,210,0.18), rgba(0,0,0,0.25));
+    mix-blend-mode: overlay;
+  }
+  .badge {
+    position: absolute;
+    left: 50%; bottom: 14px;
+    transform: translateX(-50%);
+    padding: 5px 14px;
+    border-radius: 20px;
+    background: linear-gradient(180deg,#e9e2d2,#bfb39a);
+    color: #4a3a22;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.7);
+  }
+
+  /* ===== Right control panel ===== */
+  .panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Tuning dial / frequency display */
+  .dial {
+    border-radius: 10px;
+    padding: 12px 14px 10px;
+    background: linear-gradient(180deg, #f7eecb 0%, #e7d49a 100%);
+    box-shadow:
+      inset 0 2px 5px rgba(120,90,40,0.45),
+      inset 0 0 0 2px rgba(120,80,30,0.4),
+      0 1px 0 rgba(255,230,180,0.5);
+    position: relative;
+    overflow: hidden;
+  }
+  .dial .band {
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: #7a5a22;
+    font-weight: 700;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .scale {
+    position: relative;
+    height: 34px;
+    border-top: 1px solid rgba(120,80,30,0.5);
+    border-bottom: 1px solid rgba(120,80,30,0.5);
+  }
+  .ticks {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    height: 100%;
+    padding: 0 2px;
+  }
+  .num {
+    font-size: 11px;
+    color: #6e4d18;
+    font-weight: 700;
+    position: relative;
+    padding-bottom: 2px;
+  }
+  .num::before {
+    content: "";
+    position: absolute;
+    top: -16px; left: 50%;
+    width: 1px; height: 9px;
+    background: #6e4d18;
+  }
+  /* red tuning needle */
+  .needle {
+    position: absolute;
+    top: -2px; bottom: -2px;
+    left: 62%;
+    width: 3px;
+    background: linear-gradient(180deg,#ff5b3c,#c4231a);
+    box-shadow: 0 0 6px rgba(255,60,40,0.8);
+    border-radius: 2px;
+  }
+
+  /* ===== Preset buttons ===== */
+  .presets {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 9px;
+    padding: 2px;
+  }
+  .preset {
+    border: none;
+    font: inherit;
+    cursor: pointer;
+    aspect-ratio: 1 / 0.78;
+    border-radius: 7px;
+    background:
+      linear-gradient(180deg, #efe7d3 0%, #d8c39a 100%);
+    box-shadow:
+      0 3px 5px rgba(0,0,0,0.45),
+      inset 0 2px 0 rgba(255,255,255,0.75),
+      inset 0 -3px 5px rgba(120,80,30,0.4);
+    color: #5a4220;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: transform 0.06s ease, box-shadow 0.06s ease;
+  }
+  .preset:active,
+  .preset.active {
+    transform: translateY(2px);
+    background: linear-gradient(180deg, #d8c39a 0%, #c2aa78 100%);
+    box-shadow:
+      0 1px 2px rgba(0,0,0,0.4),
+      inset 0 2px 6px rgba(90,60,20,0.6);
+    color: #3d2c12;
+  }
+  .preset .pled {
+    position: absolute;
+    top: 5px; right: 6px;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: #7a1808;
+    box-shadow: inset 0 1px 1px rgba(0,0,0,0.4);
+  }
+  .preset.active .pled {
+    background: radial-gradient(circle at 35% 35%, #ff8d6e, #e23b1e 70%);
+    box-shadow: 0 0 6px 1px rgba(255,70,40,0.9);
+  }
+
+  /* power LED row */
+  .footrow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 2px;
+    padding: 0 6px;
+  }
+  .station {
+    font-size: 11px;
+    letter-spacing: 1px;
+    font-weight: 700;
+    color: #f4e2c4;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.5);
+  }
+  .power {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 9px; letter-spacing: 2px; font-weight:700;
+    color: #f4e2c4; text-shadow: 0 1px 1px rgba(0,0,0,0.5);
+  }
+  .led {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ff8d6e, #e23b1e 60%, #7a1808);
+    box-shadow: 0 0 8px 2px rgba(255,70,40,0.8), inset 0 1px 1px rgba(255,255,255,0.5);
+    animation: glow 2.6s ease-in-out infinite;
+  }
+  @keyframes glow {
+    0%,100% { box-shadow: 0 0 8px 2px rgba(255,70,40,0.7), inset 0 1px 1px rgba(255,255,255,0.5);}
+    50%     { box-shadow: 0 0 13px 4px rgba(255,90,55,1), inset 0 1px 1px rgba(255,255,255,0.6);}
+  }
+
+  /* feet */
+  .feet {
+    position: absolute;
+    bottom: -10px; left: 0; right: 0;
+    display: flex; justify-content: space-between;
+    padding: 0 40px;
+  }
+  .feet span {
+    width: 46px; height: 12px;
+    background: linear-gradient(180deg,#3a2414,#1f130a);
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 6px 8px rgba(0,0,0,0.4);
+  }
+</style>
+</head>
+<body>
+  <div class="radio">
+    <div class="face">
+      <!-- Speaker -->
+      <div class="speaker">
+        <div class="grille">
+          <div class="badge">REGENCY</div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="panel">
+        <div class="dial">
+          <div class="band"><span>FM MHz</span><span>AM kHz</span></div>
+          <div class="scale">
+            <div class="ticks">
+              <span class="num">88</span>
+              <span class="num">92</span>
+              <span class="num">96</span>
+              <span class="num">100</span>
+              <span class="num">104</span>
+              <span class="num">108</span>
+            </div>
+            <div class="needle" id="needle"></div>
+          </div>
+        </div>
+
+        <div class="presets" id="presets"></div>
+
+        <div class="footrow">
+          <div class="station" id="station">88.5</div>
+          <div class="power"><span class="led"></span>ON</div>
+        </div>
+      </div>
+    </div>
+    <div class="feet"><span></span><span></span></div>
+  </div>
+
+<script>
+  // 12 station presets. Each maps to a frequency that positions the dial needle.
+  const stations = [
+    88.5, 90.1, 92.3, 94.7,
+    96.5, 98.7, 101.1, 102.9,
+    104.5, 105.7, 106.7, 107.9
+  ];
+  const presets = document.getElementById('presets');
+  const needle   = document.getElementById('needle');
+  const station  = document.getElementById('station');
+
+  function tuneTo(btn, freq) {
+    document.querySelectorAll('.preset').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    station.textContent = freq.toFixed(1);
+    // FM scale 88–108 -> needle position 8%..92%
+    const pos = 8 + ((freq - 88) / 20) * 84;
+    needle.style.left = pos + '%';
+  }
+
+  stations.forEach((freq, i) => {
+    const b = document.createElement('button');
+    b.className = 'preset';
+    b.innerHTML = '<span class="pled"></span>' + (i + 1);
+    b.title = freq.toFixed(1) + ' FM';
+    b.addEventListener('click', () => tuneTo(b, freq));
+    presets.appendChild(b);
+  });
+
+  // start on preset 1
+  tuneTo(presets.firstChild, stations[0]);
+</script>
+</body>
+</html>
