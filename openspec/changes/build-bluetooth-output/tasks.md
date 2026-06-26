@@ -12,10 +12,10 @@
 
 ## 3. Bluetooth controller seam (D-Bus)
 
-- [ ] 3.1 Define a thin `BluetoothController` interface in `fmradiod/bluetooth/controller.py` — `power(on)`, `start_discovery()/stop_discovery()`, `devices()`, `pair/connect/disconnect/forget(mac)`, and an async change-event stream — plus a `FakeBluetoothController` (scripted devices/events) for tests.
-- [ ] 3.2 Implement `DbusBluetoothController` (`fmradiod/bluetooth/dbus.py`) over the **system bus** `org.bluez` via `dbus-fast` (Adapter1/Device1, ObjectManager for the device list + InterfacesAdded/PropertiesChanged signals); lazy-import `dbus-fast` so the Mac never needs a bus.
-- [ ] 3.3 Register a BlueZ `Agent1` with `NoInputNoOutput` capability + request default-agent for just-works pairing; keep **discovery + agent alive for the controller's lifetime** (spike race: device "ages out" if discovery stops before pair).
-- [ ] 3.4 Unit-test the controller-driven logic with `FakeBluetoothController`: scan populates the device list, pair/connect/disconnect/forget transition state, and change-events propagate.
+- [x] 3.1 Define a thin `BluetoothController` interface in `fmradiod/bluetooth/controller.py` — `power(on)`, `start_discovery()/stop_discovery()`, `devices()`, `pair/connect/disconnect/forget(mac)`, and an async change-event stream — plus a `FakeBluetoothController` (scripted devices/events) for tests. *(ABC + `FakeBluetoothController` with `set_on_change` callback + `simulate_drop` helper.)*
+- [x] 3.2 Implement `DbusBluetoothController` (`fmradiod/bluetooth/dbus.py`) over the **system bus** `org.bluez` via `dbus-fast` (Adapter1/Device1, ObjectManager for the device list + InterfacesAdded/PropertiesChanged signals); lazy-import `dbus-fast` so the Mac never needs a bus. *(Cache rebuilt from GetManagedObjects + add/remove + per-device PropertiesChanged; lazy import inside `start()`. Imports without a bus — verified by test. Real-bus behavior verified on Pi in 7.x.)*
+- [x] 3.3 Register a BlueZ `Agent1` with `NoInputNoOutput` capability + request default-agent for just-works pairing; keep **discovery + agent alive for the controller's lifetime** (spike race: device "ages out" if discovery stops before pair). *(`_Agent` ServiceInterface auto-accepts; registered in `start()`, unregistered in `stop()`.)*
+- [x] 3.4 Unit-test the controller-driven logic with `FakeBluetoothController`: scan populates the device list, pair/connect/disconnect/forget transition state, and change-events propagate. *(6 tests in `tests/test_bluetooth_controller.py`.)*
 
 ## 4. Web API + UI
 
