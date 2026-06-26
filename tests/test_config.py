@@ -189,3 +189,22 @@ def test_buttons_not_a_mapping_raises(tmp_path):
         load_config(_write(tmp_path, _HEAD + _PRESETS + """
     buttons: "on"
     """))
+
+
+def test_bluetooth_defaults_when_block_absent(tmp_path):
+    cfg = load_config(_write(tmp_path, _HEAD + _PRESETS))
+    assert cfg.bluetooth.enabled is False
+
+
+def test_bluetooth_block_parsed(tmp_path):
+    cfg = load_config(_write(tmp_path, _HEAD + _PRESETS + """
+    bluetooth: { enabled: true }
+    """))
+    assert cfg.bluetooth.enabled is True
+
+
+def test_bluetooth_not_a_mapping_raises(tmp_path):
+    with pytest.raises(ConfigError):
+        load_config(_write(tmp_path, _HEAD + _PRESETS + """
+    bluetooth: "on"
+    """))

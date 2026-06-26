@@ -9,7 +9,10 @@ same snapshot without importing Starlette. Every state-change event just means
 from __future__ import annotations
 
 
-def build_state(tuner, metadata) -> dict:
+_BT_OFF = {"enabled": False, "scanning": False, "devices": [], "connected": None}
+
+
+def build_state(tuner, metadata, bluetooth=None) -> dict:
     snap = tuner.snapshot()
     np = metadata.now_playing()
     return {
@@ -21,6 +24,7 @@ def build_state(tuner, metadata) -> dict:
             "hd_program": snap["hd_program"],
         },
         "status": snap["status"],
+        "output": snap.get("output", "web"),
         "now_playing": {
             "title": np["title"],
             "artist": np["artist"],
@@ -31,4 +35,5 @@ def build_state(tuner, metadata) -> dict:
             {"index": i, "label": p.label, "mode": p.mode, "freq": p.freq, "hd_program": p.hd_program}
             for i, p in enumerate(tuner.ring.items)
         ],
+        "bluetooth": bluetooth.state() if bluetooth is not None else dict(_BT_OFF),
     }

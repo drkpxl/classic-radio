@@ -235,3 +235,52 @@ async def test_unexpected_exit_publishes_error_and_retries(tmp_path):
     assert len(t.groups) == 2          # retried with a fresh pipeline
     assert t.max_concurrent == 1
     await tuner.stop()
+
+
+MAC = "50:99:5A:21:F8:BB"
+BT_SINK = f"bluealsa:DEV={MAC},PROFILE=a2dp"
+
+
+async def test_bluetooth_output_builds_aplay_pipeline(tmp_path):
+    t = SpawnTracker()
+    tuner = make_tuner(tmp_path, t)
+    tuner.set_bt_sink(MAC)
+    await tuner.set_output("bluetooth")    # re-tunes the current preset to the speaker
+    g = t.groups[-1]
+    assert len(g.pipeline) == 3
+    assert g.pipeline[-1] == ["aplay", "-q", "-D", BT_SINK, "-"]
+    assert tuner.output == "bluetooth"
+    assert tuner.status == "playing"       # BT path reports playing immediately
+    assert tuner.snapshot()["output"] == "bluetooth"
+    await tuner.stop()
+
+
+async def test_set_output_bluetooth_without_speaker_raises(tmp_path):
+    t = SpawnTracker()
+    tuner = make_tuner(tmp_path, t)
+    with pytest.raises(ValueError):
+        await tuner.set_output("bluetooth")
+    assert tuner.output == "web"
+    await tuner.stop()
+
+
+async def test_output_mode_persisted(tmp_path):
+    t = SpawnTracker()
+    tuner = make_tuner(tmp_path, t)
+    tuner.set_bt_sink(MAC)
+    await tuner.set_output("bluetooth")
+    assert StateStore(tmp_path / "state.json").load_output() == "bluetooth"
+    await tuner.stop()
+
+
+async def test_bluetooth_drop_falls_back_to_web(tmp_path):
+    t = SpawnTracker()
+    tuner = make_tuner(tmp_path, t, backoff=0.0)
+    tuner.set_bt_sink(MAC)
+    await tuner.set_output("bluetooth")
+    assert tuner.output == "bluetooth"
+    t.groups[-1].crash()                   # speaker drops → aplay/ffmpeg exit
+    await asyncio.sleep(0.05)
+    assert tuner.output == "web"           # fell back, not retried on the dead sink
+    assert len(t.groups[-1].pipeline) == 2  # the new pipeline is the web (MP3) tail
+    await tuner.stop()

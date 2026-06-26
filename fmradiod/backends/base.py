@@ -44,15 +44,32 @@ class Backend(ABC):
     def source_command(self, preset: Preset, sdr: SdrConfig, aas_dir: str | None) -> list[str]:
         """argv for the source process (rtl_fm / nrsc5)."""
 
-    def ffmpeg_command(self, audio: AudioConfig) -> list[str]:
+    def _ffmpeg_input(self, audio: AudioConfig) -> list[str]:
         fmt = self.pcm_format
         return [
             "ffmpeg", "-hide_banner", "-loglevel", "error",
             "-f", "s16le", "-ar", str(fmt.sample_rate), "-ac", str(fmt.channels), "-i", "-",
+        ]
+
+    def ffmpeg_command(self, audio: AudioConfig) -> list[str]:
+        """Web tail: re-encode to the uniform MP3 fed to the HTTP fan-out."""
+        return self._ffmpeg_input(audio) + [
             "-c:a", "libmp3lame", "-b:a", audio.bitrate,
             "-ar", str(audio.sample_rate), "-ac", str(audio.channels),
             "-f", "mp3", "pipe:1",
         ]
+
+    def ffmpeg_wav_command(self, audio: AudioConfig) -> list[str]:
+        """Bluetooth tail: emit uniform PCM/WAV to pipe for `aplay` → bluealsa."""
+        return self._ffmpeg_input(audio) + [
+            "-ar", str(audio.sample_rate), "-ac", str(audio.channels),
+            "-f", "wav", "pipe:1",
+        ]
+
+    @staticmethod
+    def aplay_command(alsa_sink: str) -> list[str]:
+        """Final stage for the bluetooth output: stream stdin WAV to the A2DP sink."""
+        return ["aplay", "-q", "-D", alsa_sink, "-"]
 
     def build_command(
         self,
@@ -60,5 +77,11 @@ class Backend(ABC):
         audio: AudioConfig,
         sdr: SdrConfig,
         aas_dir: str | None = None,
+        alsa_sink: str | None = None,
     ) -> list[list[str]]:
-        return [self.source_command(preset, sdr, aas_dir), self.ffmpeg_command(audio)]
+        source = self.source_command(preset, sdr, aas_dir)
+        if alsa_sink:
+            # source | ffmpeg(WAV) | aplay -D bluealsa:DEV=…  — ffmpeg/aplay write
+            # to ALSA, so the pipeline produces no stdout for the fan-out.
+            return [source, self.ffmpeg_wav_command(audio), self.aplay_command(alsa_sink)]
+        return [source, self.ffmpeg_command(audio)]

@@ -44,9 +44,9 @@ A `BluetoothController` interface wraps BlueZ: `power(on)`, `start_discovery()/s
 `bluetooth.enabled` defaults off. Only when enabled does `build_app()` lazily import the controller and construct it; any `ImportError`/bus/init failure logs a WARNING and the daemon runs web-only. The controller starts in `lifespan` after the tuner (power on, register agent, restore last device/auto-reconnect, restore output mode) and stops before the tuner (stop discovery, unregister agent, disconnect cleanly).
 - **Why:** identical fail-soft contract to the other optional peripherals; a flaky bus or missing stack can never take down audio/web.
 
-### Decision 6: Web UI panel as additive surface
-A new Bluetooth section in the existing page: scan toggle, device list (status badges + pair/connect/disconnect/forget buttons), and an Output toggle (Web ⇄ BT). Driven entirely by `/api/state` + the SSE stream (no new client state model). New endpoints: `GET /api/bt/devices` (in state), `POST /api/bt/scan` (on/off), `POST /api/bt/{pair,connect,disconnect,forget}/<mac>`, `POST /api/output` (`web`|`bluetooth`).
-- **Why:** reuses the one-render-path UI model; the BT controls are just more state + more POSTs.
+### Decision 6: Web UI — repurpose the vestigial "AM/KHz" indicator as the Bluetooth entry point
+The retro UI has an "AM / KHz" band indicator that's dead weight (AM is out of scope). **Replace it with a speaker icon.** Tapping it opens a **simple scan/select modal** (scan toggle + discovered/paired device list with pair/connect/disconnect/forget). **When a speaker is connected, the indicator renders the speaker icon + its name** — so the same spot is both the entry point and the at-a-glance "playing on <speaker>" status. The modal also carries the Output toggle (Web ⇄ BT); connecting a speaker can imply switching to BT output (finalize in build). Driven entirely by `/api/state` + the SSE stream (no new client state model). New endpoints: `POST /api/bt/scan` (on/off), `POST /api/bt/{pair,connect,disconnect,forget}/<mac>`, `POST /api/output` (`web`|`bluetooth`); device list + output ride `/api/state`.
+- **Why:** reuses the one-render-path UI model and gives Bluetooth a discoverable home without adding chrome — the AM indicator was doing nothing.
 
 ## Risks / Trade-offs
 

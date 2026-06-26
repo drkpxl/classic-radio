@@ -1,14 +1,14 @@
 ## 1. Config & persisted state
 
-- [ ] 1.1 Add a `BluetoothConfig` dataclass + a `bluetooth:` block to `fmradiod/config.py` (`enabled: bool = False`) and `config.yaml` (`enabled: false`), parsed with safe defaults like the `display:`/`buttons:` blocks; unit-test load with/without the block.
-- [ ] 1.2 Persist the selected **output mode** (`web`/`bluetooth`) and **last connected device MAC** in `fmradiod/state.py` (StateStore) alongside the preset index, with safe defaults; unit-test save/load round-trip.
+- [x] 1.1 Add a `BluetoothConfig` dataclass + a `bluetooth:` block to `fmradiod/config.py` (`enabled: bool = False`) and `config.yaml` (`enabled: false`), parsed with safe defaults like the `display:`/`buttons:` blocks; unit-test load with/without the block. *(Added `BluetoothConfig` + `_bluetooth_from`; 3 tests.)*
+- [x] 1.2 Persist the selected **output mode** (`web`/`bluetooth`) and **last connected device MAC** in `fmradiod/state.py` (StateStore) alongside the preset index, with safe defaults; unit-test save/load round-trip. *(Refactored StateStore to read-modify-merge (no clobber); added `save/load_output`, `save/load_device`; 3 tests incl. merge.)*
 
 ## 2. Output-mode seam in the tuner
 
-- [ ] 2.1 Add an `output` mode (`web`|`bluetooth`) to `Tuner`; thread a sink selector into the backends' `build_command` so the pipeline **tail** is either `ffmpeg`→MP3→`FanOut` (web) or `ffmpeg`→PCM(s16le/48k/stereo)→`bluealsa:DEV=<MAC>,PROFILE=a2dp` (bluetooth). The demod stage is unchanged.
-- [ ] 2.2 Implement `set_output(mode)` that persists the mode and rebuilds the current preset's pipeline **under the existing tune lock** (no overlap with a tune); publish state on the EventBus.
-- [ ] 2.3 In `bluetooth` mode the `FanOut` receives no data (web suspended); in `web` mode behavior is exactly as today. Include `output` in `build_state` (`fmradiod/viewstate.py`).
-- [ ] 2.4 Unit-test: output-mode selects the right pipeline tail; switching is serialized; web-mode behavior unchanged; `build_state` reports the mode.
+- [x] 2.1 Add an `output` mode (`web`|`bluetooth`) to `Tuner`; thread a sink selector into the backends' `build_command` so the pipeline **tail** is either `ffmpeg`→MP3→`FanOut` (web) or `ffmpeg`→PCM(s16le/48k/stereo)→`bluealsa:DEV=<MAC>,PROFILE=a2dp` (bluetooth). The demod stage is unchanged. *(`build_command(..., alsa_sink=)` → 3-stage `source|ffmpeg(wav)|aplay -D bluealsa`; `Tuner.output`/`bt_sink`. BT path skips the FanOut pump and reports `playing`.)*
+- [x] 2.2 Implement `set_output(mode)` that persists the mode and rebuilds the current preset's pipeline **under the existing tune lock** (no overlap with a tune); publish state on the EventBus. *(`set_output` re-tunes via `tune()` (lock-serialized); persists via `state.save_output`; `set_bt_sink(mac)` builds the device string.)*
+- [x] 2.3 In `bluetooth` mode the `FanOut` receives no data (web suspended); in `web` mode behavior is exactly as today. Include `output` in `build_state` (`fmradiod/viewstate.py`). *(BT tail writes to ALSA, no pump → FanOut idle; `build_state` adds `output` + a `bluetooth` block. Supervisor: BT-drop → fall back to web.)*
+- [x] 2.4 Unit-test: output-mode selects the right pipeline tail; switching is serialized; web-mode behavior unchanged; `build_state` reports the mode. *(2 backend + 4 tuner tests incl. set_output-without-speaker raises and BT-drop→web fallback.)*
 
 ## 3. Bluetooth controller seam (D-Bus)
 
@@ -20,7 +20,7 @@
 ## 4. Web API + UI
 
 - [ ] 4.1 Add endpoints in `web/app.py`: `POST /api/output` (`web`|`bluetooth`), `POST /api/bt/scan` (on/off), `POST /api/bt/{pair,connect,disconnect,forget}/<mac>`; include a `bluetooth` block (devices, scanning, connected) and `output` in `/api/state` and the SSE payload.
-- [ ] 4.2 Add a **Bluetooth panel** to the web UI (`web/static`): scan toggle, device list with status badges + pair/connect/disconnect/forget, and an **Output selector (Web ⇄ Bluetooth)** — all driven by `/api/state` + the existing SSE stream (one render path).
+- [ ] 4.2 Add the Bluetooth UI to the web page (`web/static`), **entry point = the vestigial "AM/KHz" band indicator repurposed into a speaker icon** (AM is out of scope): tapping the speaker icon opens a **simple scan/select modal** (scan toggle + discovered/paired device list with pair/connect/disconnect/forget); **when a speaker is connected the indicator shows the speaker icon + its name**. The modal also carries the **Output selector (Web ⇄ Bluetooth)** (or selecting/connecting a speaker implies BT output — decide in build). All driven by `/api/state` + the existing SSE stream (one render path).
 - [ ] 4.3 Unit-test the endpoints + state shape with the `FakeBluetoothController` (scan toggles, actions call the controller, `/api/output` switches mode, state reflects it).
 
 ## 5. Wire into the daemon (lifespan + fail-soft)

@@ -31,6 +31,9 @@ buttons:              # on-device Mini PiTFT 1.14" GPIO buttons → preset next/
   debounce_ms: 25     # stable interval a press must hold before it registers
   poll_ms: 20         # input-loop poll interval (ms)
 
+bluetooth:            # A2DP speaker output via BlueZ + bluez-alsa (exclusive with web output)
+  enabled: false      # flip to true on the Pi once verified; Mac (no bus) / no-BlueZ Pi fail-soft
+
 presets:
   - { label: "KBCO – World Class Rock", mode: hd,      freq: 97.3,    hd_program: 0 }
   - { label: "Denver Weather (KEC76)",  mode: weather, freq: 162.550 }

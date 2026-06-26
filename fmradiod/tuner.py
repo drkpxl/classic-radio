@@ -58,6 +58,10 @@ class Tuner:
         self._signal_task = None
         self._aas_dir = None
         self.status = "stopped"
+        # Audio output routing. "web" → MP3 fan-out (default); "bluetooth" → the
+        # demod audio is piped to the connected speaker's bluealsa A2DP sink.
+        self.output = "web"
+        self.bt_sink: str | None = None  # ALSA device for the connected speaker, or None
 
     # ----- read-only state -----
     @property
@@ -78,6 +82,7 @@ class Tuner:
             "freq": p.freq,
             "hd_program": p.hd_program,
             "status": self.status,
+            "output": self.output,
         }
 
     # ----- control -----
@@ -91,6 +96,24 @@ class Tuner:
     async def prev(self) -> None:
         await self.tune((self.ring.index - 1) % len(self.ring))
 
+    def set_bt_sink(self, mac: str | None) -> None:
+        """Point the bluetooth output at a connected speaker (by MAC), or clear it.
+        Does not re-tune by itself — the caller pairs this with set_output()."""
+        self.bt_sink = f"bluealsa:DEV={mac},PROFILE=a2dp" if mac else None
+
+    async def set_output(self, mode: str) -> None:
+        """Switch the audio output. Rebuilds the current preset's pipeline tail
+        under the tune lock (no overlap with a tune)."""
+        if mode not in ("web", "bluetooth"):
+            raise ValueError(f"unknown output mode {mode!r}")
+        if mode == "bluetooth" and not self.bt_sink:
+            raise ValueError("no bluetooth speaker connected")
+        if mode == self.output:
+            return
+        self.output = mode
+        self.state.save_output(mode)
+        await self.tune(self.ring.index)
+
     async def tune(self, index: int, _attempt: int = 0) -> None:
         async with self._lock:
             await self._teardown()
@@ -102,25 +125,39 @@ class Tuner:
                 aas_dir = tempfile.mkdtemp(prefix="aas-", dir=self._aas_root)
             self._aas_dir = aas_dir
 
-            pipeline = backend.build_command(preset, self.audio, self.sdr, aas_dir)
+            alsa_sink = self.bt_sink if self.output == "bluetooth" else None
+            pipeline = backend.build_command(preset, self.audio, self.sdr, aas_dir,
+                                             alsa_sink=alsa_sink)
             group = await self._spawn(pipeline)
             self._group = group
 
-            first_data = asyncio.Event()
-            self._pump_task = asyncio.ensure_future(
-                self.fanout.pump(group.stdout, on_first=first_data.set)
-            )
+            if alsa_sink is None:
+                # Web output: pump ffmpeg's MP3 stdout to the fan-out; first byte = signal.
+                first_data = asyncio.Event()
+                self._pump_task = asyncio.ensure_future(
+                    self.fanout.pump(group.stdout, on_first=first_data.set)
+                )
+            else:
+                # Bluetooth: ffmpeg → aplay write to the ALSA sink; nothing to pump.
+                first_data = None
 
+            # Metadata (nrsc5 now-playing) is independent of the audio sink — keep it.
             if self._metadata is not None:
                 await self._metadata.switch(preset, group, aas_dir)
             else:
                 self._stderr_task = asyncio.ensure_future(self._drain(group.source_stderr))
 
-            self.status = "acquiring"
             self.state.save_index(index)
-            self.bus.publish(self.snapshot())
             self._supervisor = asyncio.ensure_future(self._supervise(group, index, _attempt))
-            self._signal_task = asyncio.ensure_future(self._watch_signal(group, first_data))
+            if alsa_sink is None:
+                self.status = "acquiring"
+                self.bus.publish(self.snapshot())
+                self._signal_task = asyncio.ensure_future(self._watch_signal(group, first_data))
+            else:
+                # Can't observe first-audio on the speaker; report playing and let the
+                # supervisor catch a drop (aplay/ffmpeg exit → fall back to web output).
+                self.status = "playing"
+                self.bus.publish(self.snapshot())
 
     async def stop(self) -> None:
         async with self._lock:
@@ -136,6 +173,16 @@ class Tuner:
         if group.stopped or group is not self._group:
             return  # intentional teardown / superseded
         # Unexpected exit.
+        if self.output == "bluetooth":
+            # Likely the speaker dropped (aplay/ffmpeg ALSA write failed). Fall back
+            # to the web output rather than retrying a dead sink — audio is never
+            # left silently dead. The controller reconciles the BT connection.
+            self.output = "web"
+            self.state.save_output("web")
+            self.status = "error"
+            self.bus.publish(self.snapshot())
+            await self.tune(index)
+            return
         self.status = "error"
         self.bus.publish(self.snapshot())
         if attempt < self._max_retries:
