@@ -11,7 +11,10 @@ on the station (e.g. tuned to KBCO HD1 we still receive HD3's art and promo tile
 so picking "any image" shows the wrong art. The `XHDR:` line is the tie-breaker: its
 last field is the LOT id of the *current tuned program's* cover art (`-1` = none, a
 station-ID screen). So we map `lot -> filename` from `LOT file:` lines and only show
-the image whose lot matches the latest `XHDR`, clearing art when it's -1.
+the image whose lot matches the latest `XHDR`. Art is *sticky* — once shown it stays
+through station-ID gaps and until the next song's (slow-to-download) art arrives, so
+it never flickers — but it only ever swaps to a confirmed image for the current
+program, and resets on a preset switch.
 """
 
 from __future__ import annotations
@@ -127,12 +130,17 @@ class Metadata:
             pass
 
     def _recompute_art(self) -> bool:
-        """Set art_path to the image matching the current XHDR lot (or None when the
-        lot is -1 or its file hasn't arrived). Returns whether the path changed."""
-        if self._cur_lot is not None and self._aas_dir and self._cur_lot in self._lots:
-            new_path = str(Path(self._aas_dir) / f"{self._cur_lot}_{self._lots[self._cur_lot]}")
-        else:
-            new_path = None
+        """Update art to the image matching the current XHDR lot, when we have it.
+
+        Sticky: we never blank existing art just because the lot is -1 (a station-ID
+        screen) or the next song's art hasn't finished downloading yet — HD pushes
+        cover art slowly over a carousel, so blanking in the gaps makes art flicker
+        and look broken. We only ever *swap* to a confirmed image for the current
+        program (XHDR-matched), so it never shows another subchannel's art. Art is
+        reset on a preset switch (new program) via _reset_to."""
+        if self._cur_lot is None or not self._aas_dir or self._cur_lot not in self._lots:
+            return False
+        new_path = str(Path(self._aas_dir) / f"{self._cur_lot}_{self._lots[self._cur_lot]}")
         if new_path != self.art_path:
             self.art_path = new_path
             self.art_token += 1

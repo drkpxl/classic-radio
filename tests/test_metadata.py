@@ -77,18 +77,33 @@ async def test_art_does_not_bleed_other_subchannel(tmp_path):
     assert md.art_path == str(tmp_path / "53104_KBCOHD01cf70.jpg")
 
 
-async def test_xhdr_minus_one_clears_art(tmp_path):
-    # Station-ID screen (no current song) → XHDR lot -1 → no art shown.
+async def test_art_is_sticky_across_minus_one(tmp_path):
+    # HD pushes art slowly, so blanking on a station-ID gap (XHDR -1) makes it
+    # flicker. Art is sticky: once shown it stays until a new song's art arrives.
     md = Metadata(EventBus())
     group = FakeGroup(LineReader([
         "13:31:00 LOT file: port=0810 lot=53104 name=KBCOHD01cf70.jpg size=1 mime=4F328CA0\n",
         "13:31:00 XHDR: 0 BE4B7536 53104\n",
-        "13:31:30 XHDR: 1 BE4B7536 -1\n",
+        "13:31:30 XHDR: 1 BE4B7536 -1\n",       # station-ID gap
     ]))
     await md.switch(Preset("KBCO", "hd", 97.3, 0), group, str(tmp_path))
     await md._task
+    assert md.art_path == str(tmp_path / "53104_KBCOHD01cf70.jpg")   # kept, not blanked
+
+
+async def test_switch_resets_sticky_art(tmp_path):
+    # Sticky art must NOT carry across a preset switch (new program / aas dir).
+    md = Metadata(EventBus())
+    g1 = FakeGroup(LineReader([
+        "13:31:00 LOT file: port=0810 lot=53104 name=KBCOHD01cf70.jpg size=1 mime=4F328CA0\n",
+        "13:31:00 XHDR: 0 BE4B7536 53104\n",
+    ]))
+    await md.switch(Preset("KBCO", "hd", 97.3, 0), g1, str(tmp_path))
+    await md._task
+    assert md.art_path is not None
+    await md.switch(Preset("KTCL", "analog", 93.3), FakeGroup(LineReader([])), None)
+    await md._task
     assert md.art_path is None
-    assert md.now_playing()["art"] is None
 
 
 async def test_image_without_xhdr_shows_no_art(tmp_path):
