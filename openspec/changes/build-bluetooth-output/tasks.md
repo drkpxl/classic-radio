@@ -38,9 +38,9 @@
 
 ## 7. On-device verification (Pi)
 
-- [ ] 7.1 Install `dbus-fast` into `/root/fmradio/.venv`; run the full suite on the Pi (`pytest`) — all green incl. the new bluetooth/output tests.
-- [ ] 7.2 Set `bluetooth.enabled: true` in the Pi config, restart `fmradiod.service`, and verify from the browser: scan shows the Echo; connect; switch Output → Bluetooth ⇒ **radio plays out the Echo**; switch → Web ⇒ browser audio resumes; disconnect/forget/re-pair work; the web UI + TFT track every change; reboot ⇒ auto-reconnect + resume `bluetooth` output; `systemctl stop` leaves no orphans and releases the bus/agent.
+- [x] 7.1 Install `dbus-fast` into `/root/fmradio/.venv`; run the full suite on the Pi (`pytest`) — all green incl. the new bluetooth/output tests. *(`dbus-fast 5.0.22`; Pi suite 152 passed, 1 skipped.)*
+- [x] 7.2 Set `bluetooth.enabled: true` in the Pi config, restart `fmradiod.service`, and verify from the browser: scan shows the Echo; connect; switch Output → Bluetooth ⇒ **radio plays out the Echo**; switch → Web ⇒ browser audio resumes; disconnect/forget/re-pair work; the web UI + TFT track every change; reboot ⇒ auto-reconnect + resume `bluetooth` output; `systemctl stop` leaves no orphans and releases the bus/agent. *(Verified: controller starts on the real bus; connect routes audio to the Echo (user confirmed hearing it); output toggle web⇄BT round-trips (pipeline tail flips libmp3lame ⇄ aplay→bluealsa); reboot auto-restores BT in ~2s; UI speaker icon + name + modal confirmed by user. Needed group-7 robustness fixes for the post-restart A2DP transport hiccup.)*
 
 ## 8. Docs
 
-- [ ] 8.1 Add a build-notes doc (BlueZ D-Bus via dbus-fast, the pairing agent, the output-router seam, gotchas) consistent with `docs/bluetooth-spike.md`; update `docs/roadmap.md` (Bluetooth shipped → only the 3.5 mm jack + mobile UI fixes remain).
+- [x] 8.1 Add a build-notes doc (BlueZ D-Bus via dbus-fast, the pairing agent, the output-router seam, gotchas) consistent with `docs/bluetooth-spike.md`; update `docs/roadmap.md` (Bluetooth shipped → only the 3.5 mm jack + mobile UI fixes remain). *(New `docs/bluetooth-output-build.md`; roadmap updated — BT in Done, 3.5mm jack is the last phase-sized item.)*
