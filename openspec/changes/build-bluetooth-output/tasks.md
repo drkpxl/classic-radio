@@ -19,22 +19,22 @@
 
 ## 4. Web API + UI
 
-- [ ] 4.1 Add endpoints in `web/app.py`: `POST /api/output` (`web`|`bluetooth`), `POST /api/bt/scan` (on/off), `POST /api/bt/{pair,connect,disconnect,forget}/<mac>`; include a `bluetooth` block (devices, scanning, connected) and `output` in `/api/state` and the SSE payload.
-- [ ] 4.2 Add the Bluetooth UI to the web page (`web/static`), **entry point = the vestigial "AM/KHz" band indicator repurposed into a speaker icon** (AM is out of scope): tapping the speaker icon opens a **simple scan/select modal** (scan toggle + discovered/paired device list with pair/connect/disconnect/forget); **when a speaker is connected the indicator shows the speaker icon + its name**. The modal also carries the **Output selector (Web ⇄ Bluetooth)** (or selecting/connecting a speaker implies BT output — decide in build). All driven by `/api/state` + the existing SSE stream (one render path).
-- [ ] 4.3 Unit-test the endpoints + state shape with the `FakeBluetoothController` (scan toggles, actions call the controller, `/api/output` switches mode, state reflects it).
+- [x] 4.1 Add endpoints in `web/app.py`: `POST /api/output` (`web`|`bluetooth`), `POST /api/bt/scan` (on/off), `POST /api/bt/{pair,connect,disconnect,forget}/<mac>`; include a `bluetooth` block (devices, scanning, connected) and `output` in `/api/state` and the SSE payload. *(`/api/output/{mode}`, `/api/bt/scan/{state}`, `/api/bt/{action}/{mac}`; connect auto-routes to BT + saves device, disconnect/forget → web. `build_state` threads the controller.)*
+- [x] 4.2 Add the Bluetooth UI to the web page (`web/static`), **entry point = the vestigial "AM/KHz" band indicator repurposed into a speaker icon** (AM is out of scope): tapping the speaker icon opens a **simple scan/select modal** (scan toggle + discovered/paired device list with pair/connect/disconnect/forget); **when a speaker is connected the indicator shows the speaker icon + its name**. The modal also carries the **Output selector (Web ⇄ Bluetooth)** (or selecting/connecting a speaker implies BT output — decide in build). All driven by `/api/state` + the existing SSE stream (one render path).
+- [x] 4.3 Unit-test the endpoints + state shape with the `FakeBluetoothController` (scan toggles, actions call the controller, `/api/output` switches mode, state reflects it). *(5 web tests.)*
 
 ## 5. Wire into the daemon (lifespan + fail-soft)
 
-- [ ] 5.1 In `build_app()`, construct the controller when `bluetooth.enabled` (lazy import); pass it to `create_app` and give the tuner the means to route to the connected device's `bluealsa` PCM.
-- [ ] 5.2 In `web/app.py` `lifespan`: after `tuner.start()` power on the adapter, register the agent, restore the last device (auto-reconnect) + saved output mode; on shutdown stop discovery, unregister the agent, disconnect cleanly — before `tuner.stop()` (symmetric teardown).
-- [ ] 5.3 Fail-soft init: `bluetooth.enabled` true but the bus/stack/init fails → log WARNING and run web-only (no crash).
-- [ ] 5.4 Wire speaker-drop → auto-fall-back to `web` output (from the controller's disconnect event and/or the pipeline supervisor), surfaced in state.
-- [ ] 5.5 Unit-test: `enabled=false` touches no bus; a simulated init failure still starts the app web-only; a simulated speaker drop falls back to `web`.
+- [x] 5.1 In `build_app()`, construct the controller when `bluetooth.enabled` (lazy import); pass it to `create_app` and give the tuner the means to route to the connected device's `bluealsa` PCM. *(`create_controller()` gated; tuner gets the sink via `set_bt_sink(mac)` from the connect handler.)*
+- [x] 5.2 In `web/app.py` `lifespan`: after `tuner.start()` power on the adapter, register the agent, restore the last device (auto-reconnect) + saved output mode; on shutdown stop discovery, unregister the agent, disconnect cleanly — before `tuner.stop()` (symmetric teardown). *(`_start_bluetooth()` powers on + agent + auto-reconnect; `controller.stop()` before tuner teardown.)*
+- [x] 5.3 Fail-soft init: `bluetooth.enabled` true but the bus/stack/init fails → log WARNING and run web-only (no crash). *(build_app try/except + lifespan `_start_bluetooth` try/except.)*
+- [x] 5.4 Wire speaker-drop → auto-fall-back to `web` output (from the controller's disconnect event and/or the pipeline supervisor), surfaced in state. *(Tuner supervisor: a BT pipeline's unexpected exit (aplay/ffmpeg ALSA write fails) → set output web + re-tune.)*
+- [x] 5.5 Unit-test: `enabled=false` touches no bus; a simulated init failure still starts the app web-only; a simulated speaker drop falls back to `web`. *(2 main tests + 1 web start-failure test + the tuner BT-drop test.)*
 
 ## 6. Dependencies & deploy
 
-- [ ] 6.1 Add `dbus-fast` to `pyproject.toml`/`requirements.txt`; install into the Pi venv.
-- [ ] 6.2 Confirm `deploy/sync.sh` carries `fmradiod/bluetooth/` (rsync dry-run; no exclude matches).
+- [x] 6.1 Add `dbus-fast` to `pyproject.toml`/`requirements.txt`; install into the Pi venv. *(Added to requirements.txt + a `[bluetooth]` extra; Pi install in 7.1.)*
+- [x] 6.2 Confirm `deploy/sync.sh` carries `fmradiod/bluetooth/` (rsync dry-run; no exclude matches). *(Dry-run shows the package + all changed files transfer; no exclude matches.)*
 
 ## 7. On-device verification (Pi)
 

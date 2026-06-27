@@ -75,8 +75,20 @@ def build_app(config_path=None, state_path=None, aas_root=None):
             logging.getLogger("fmradiod.buttons").warning(
                 "buttons enabled but unavailable; running without buttons", exc_info=True)
 
+    # Optional A2DP Bluetooth speaker output. The D-Bus stack is imported lazily
+    # inside the controller's start() (in the lifespan), so construction here is
+    # bus-free; a true failure surfaces fail-soft at start() → web output only.
+    bluetooth = None
+    if cfg.bluetooth.enabled:
+        try:
+            from fmradiod.bluetooth.dbus import create_controller
+            bluetooth = create_controller()
+        except Exception:
+            logging.getLogger("fmradiod.bluetooth").warning(
+                "bluetooth enabled but unavailable; web output only", exc_info=True)
+
     app = create_app(tuner, fanout, metadata, bus, str(_PKG / "web" / "static"),
-                     renderer=renderer, button_input=button_input)
+                     renderer=renderer, button_input=button_input, bluetooth=bluetooth)
     return app, cfg
 
 

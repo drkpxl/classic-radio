@@ -95,3 +95,34 @@ def test_build_app_failsoft_when_buttons_enabled_but_source_fails(tmp_path, monk
                          aas_root=str(tmp_path))
     assert cfg.buttons.enabled is True
     assert app is not None
+
+
+def test_build_app_bluetooth_disabled_no_controller(tmp_path, monkeypatch):
+    # With bluetooth disabled, build_app must never construct a controller.
+    import fmradiod.bluetooth.dbus as bt_mod
+
+    def boom(**kw):
+        raise AssertionError("must not construct controller when bluetooth disabled")
+
+    monkeypatch.setattr(bt_mod, "create_controller", boom)
+    cfg_path = _write_config(tmp_path, "bluetooth: { enabled: false }\n")
+    app, cfg = build_app(config_path=cfg_path, state_path=tmp_path / "state.json",
+                         aas_root=str(tmp_path))
+    assert cfg.bluetooth.enabled is False
+    assert app is not None
+
+
+def test_build_app_failsoft_when_bluetooth_enabled_but_unavailable(tmp_path, monkeypatch):
+    # Bluetooth enabled but the stack/bus is unavailable must still build a working
+    # app (web output only). Hermetic, so green on the Pi too.
+    import fmradiod.bluetooth.dbus as bt_mod
+
+    def boom(**kw):
+        raise RuntimeError("no dbus-fast / no bus")
+
+    monkeypatch.setattr(bt_mod, "create_controller", boom)
+    cfg_path = _write_config(tmp_path, "bluetooth: { enabled: true }\n")
+    app, cfg = build_app(config_path=cfg_path, state_path=tmp_path / "state.json",
+                         aas_root=str(tmp_path))
+    assert cfg.bluetooth.enabled is True
+    assert app is not None

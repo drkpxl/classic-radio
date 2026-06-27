@@ -14,6 +14,9 @@ dev = ["pytest", "pytest-asyncio", "httpx"]
 # Pi-only TFT driver stack (Blinka + ST7789). Imported lazily, only when the
 # display is enabled; the Pi installs these (see requirements.txt).
 display = ["adafruit-blinka", "adafruit-circuitpython-rgb-display"]
+# Bluetooth A2DP output via BlueZ over D-Bus. Pure-Python; imported lazily only
+# when bluetooth is enabled (the Mac installs fine but has no system bus).
+bluetooth = ["dbus-fast"]
 
 [tool.setuptools.packages.find]
 include = ["fmradiod*"]

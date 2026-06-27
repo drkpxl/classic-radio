@@ -7,3 +7,6 @@ pyyaml
 Pillow>=10.1
 adafruit-blinka
 adafruit-circuitpython-rgb-display
+# Bluetooth A2DP output: async D-Bus to BlueZ. Pure-Python (imports on the Mac too,
+# where there's just no system bus), imported lazily only when bluetooth is enabled.
+dbus-fast
