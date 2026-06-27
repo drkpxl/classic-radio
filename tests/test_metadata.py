@@ -36,32 +36,77 @@ async def test_parses_title_and_artist(tmp_path):
     assert np["artist"] == "Gigi Perez"
 
 
-async def test_lot_image_sets_art_path(tmp_path):
+async def test_xhdr_selects_matching_art(tmp_path):
+    # A LOT image alone is NOT shown; the XHDR lot picks the current program's art.
     md = Metadata(EventBus())
     group = FakeGroup(LineReader([
-        "13:31:00 LOT file: port=0800 lot=53000 name=KBCOHD01cf08.jpg size=5162 mime=1E653E9C expiry=2026\n",
+        "13:31:00 LOT file: port=0810 lot=53104 name=KBCOHD01cf70.jpg size=5162 mime=4F328CA0\n",
+        "13:31:00 XHDR: 0 BE4B7536 53104\n",
     ]))
     await md.switch(Preset("KBCO", "hd", 97.3, 0), group, str(tmp_path))
     await md._task
-    assert md.art_path == str(tmp_path / "53000_KBCOHD01cf08.jpg")
+    assert md.art_path == str(tmp_path / "53104_KBCOHD01cf70.jpg")
     assert md.now_playing()["art"] is not None
 
 
-async def test_newest_image_wins(tmp_path):
+async def test_xhdr_before_lot_also_works(tmp_path):
+    # Ordering-robust: XHDR can reference a lot whose file arrives afterwards.
     md = Metadata(EventBus())
     group = FakeGroup(LineReader([
-        "13:31:00 LOT file: port=0800 lot=1 name=old.jpg size=1 mime=X\n",
-        "13:31:05 LOT file: port=0800 lot=2 name=new.png size=1 mime=X\n",
+        "13:31:00 XHDR: 0 BE4B7536 53104\n",
+        "13:31:01 LOT file: port=0810 lot=53104 name=KBCOHD01cf70.jpg size=5162 mime=4F328CA0\n",
     ]))
     await md.switch(Preset("KBCO", "hd", 97.3, 0), group, str(tmp_path))
     await md._task
-    assert md.art_path == str(tmp_path / "2_new.png")
+    assert md.art_path == str(tmp_path / "53104_KBCOHD01cf70.jpg")
+
+
+async def test_art_does_not_bleed_other_subchannel(tmp_path):
+    # The bug: KBCO HD1 also receives HD3's art + promo tiles. The XHDR (pointing at
+    # the tuned program's lot) must win regardless of arrival order.
+    md = Metadata(EventBus())
+    group = FakeGroup(LineReader([
+        "13:31:00 LOT file: port=0810 lot=53104 name=KBCOHD01cf70.jpg size=1 mime=4F328CA0\n",
+        "13:31:00 XHDR: 0 BE4B7536 53104\n",
+        "13:31:02 LOT file: port=0810 lot=62496 name=KBCOHD03f420.jpg size=1 mime=4F328CA0\n",
+        "13:31:02 LOT file: port=0810 lot=708 name=TMT_promo_tile.png size=1 mime=4F328CA0\n",
+    ]))
+    await md.switch(Preset("KBCO", "hd", 97.3, 0), group, str(tmp_path))
+    await md._task
+    # still the tuned program's art, NOT the later HD3 image or the promo tile
+    assert md.art_path == str(tmp_path / "53104_KBCOHD01cf70.jpg")
+
+
+async def test_xhdr_minus_one_clears_art(tmp_path):
+    # Station-ID screen (no current song) → XHDR lot -1 → no art shown.
+    md = Metadata(EventBus())
+    group = FakeGroup(LineReader([
+        "13:31:00 LOT file: port=0810 lot=53104 name=KBCOHD01cf70.jpg size=1 mime=4F328CA0\n",
+        "13:31:00 XHDR: 0 BE4B7536 53104\n",
+        "13:31:30 XHDR: 1 BE4B7536 -1\n",
+    ]))
+    await md.switch(Preset("KBCO", "hd", 97.3, 0), group, str(tmp_path))
+    await md._task
+    assert md.art_path is None
+    assert md.now_playing()["art"] is None
+
+
+async def test_image_without_xhdr_shows_no_art(tmp_path):
+    # Images arrive but no XHDR points at one → nothing shown (prevents the bleed).
+    md = Metadata(EventBus())
+    group = FakeGroup(LineReader([
+        "13:31:00 LOT file: port=0810 lot=708 name=TMT_promo_tile.png size=1 mime=4F328CA0\n",
+    ]))
+    await md.switch(Preset("KBCO", "hd", 97.3, 0), group, str(tmp_path))
+    await md._task
+    assert md.art_path is None
 
 
 async def test_non_image_lot_ignored(tmp_path):
     md = Metadata(EventBus())
     group = FakeGroup(LineReader([
-        "13:31:00 LOT file: port=0880 lot=1 name=stuff.bin size=1 mime=X\n",
+        "13:31:00 LOT file: port=0880 lot=1184 name=DWRI_data.txt size=1 mime=BB492AAC\n",
+        "13:31:00 XHDR: 0 BE4B7536 1184\n",
     ]))
     await md.switch(Preset("KBCO", "hd", 97.3, 0), group, str(tmp_path))
     await md._task

@@ -1,13 +1,17 @@
 """Now-playing + album art for the current station, parsed from nrsc5 stderr.
 
-For HD, nrsc5 prints `Title:`/`Artist:` lines and `LOT file:` lines (album art /
-station logos) — both on its stderr — so a single line reader yields everything.
-For analog/weather there's no metadata: we hold the preset label, no art, and
-just drain the source's stderr so the process never blocks on a full pipe.
+For HD, nrsc5 prints `Title:`/`Artist:` lines, `LOT file:` lines (the images/files
+it receives), and `XHDR:` lines — all on its stderr — so a single line reader
+yields everything. For analog/weather there's no metadata: we hold the preset
+label, no art, and just drain the source's stderr so the process never blocks on
+a full pipe.
 
-Limitation (v1): nrsc5 dumps LOT files for every program/port it sees, so the
-"newest image" heuristic can occasionally show another subchannel's art. Refining
-the art→program association is a later improvement.
+Art→program association: nrsc5 dumps `LOT file:` images for *every* program/port
+on the station (e.g. tuned to KBCO HD1 we still receive HD3's art and promo tiles),
+so picking "any image" shows the wrong art. The `XHDR:` line is the tie-breaker: its
+last field is the LOT id of the *current tuned program's* cover art (`-1` = none, a
+station-ID screen). So we map `lot -> filename` from `LOT file:` lines and only show
+the image whose lot matches the latest `XHDR`, clearing art when it's -1.
 """
 
 from __future__ import annotations
@@ -42,6 +46,8 @@ class Metadata:
         self.label = label
         self.art_path = None
         self.art_token = 0
+        self._cur_lot = None     # LOT id of the current program's art (from XHDR), or None
+        self._lots: dict[int, str] = {}   # lot -> image filename, from LOT file lines
 
     def now_playing(self) -> dict:
         art = f"{self._art_route}?v={self.art_token}" if self.art_path else None
@@ -90,23 +96,48 @@ class Metadata:
         elif line.startswith("Artist: "):
             self.artist = line[len("Artist: "):].strip() or None
             changed = True
+        elif line.startswith("XHDR:"):
+            # "XHDR: <param> <mime> <lot>" — the last field is the LOT id of the
+            # current tuned program's cover art (-1 = none / station-ID screen).
+            self._cur_lot = self._parse_xhdr_lot(line)
+            changed = self._recompute_art() or changed
         elif line.startswith("LOT file:"):
-            path = self._art_from_lot(line)
-            if path:
-                self.art_path = path
-                self.art_token += 1
-                changed = True
+            # Record images as they arrive; the XHDR decides which is current.
+            self._record_lot(line)
+            changed = self._recompute_art() or changed
         if changed:
             self.bus.publish(self.now_playing())
 
-    def _art_from_lot(self, line: str) -> str | None:
+    @staticmethod
+    def _parse_xhdr_lot(line: str) -> int | None:
+        try:
+            lot = int(line.split()[-1])
+        except (IndexError, ValueError):
+            return None
+        return lot if lot >= 0 else None
+
+    def _record_lot(self, line: str) -> None:
         name = _token(line, "name=")
         lot = _token(line, "lot=")
-        if not name or not lot or not self._aas_dir:
-            return None
-        if not name.lower().endswith(_IMAGE_EXTS):
-            return None
-        return str(Path(self._aas_dir) / f"{lot}_{name}")
+        if not name or not lot or not name.lower().endswith(_IMAGE_EXTS):
+            return
+        try:
+            self._lots[int(lot)] = name
+        except ValueError:
+            pass
+
+    def _recompute_art(self) -> bool:
+        """Set art_path to the image matching the current XHDR lot (or None when the
+        lot is -1 or its file hasn't arrived). Returns whether the path changed."""
+        if self._cur_lot is not None and self._aas_dir and self._cur_lot in self._lots:
+            new_path = str(Path(self._aas_dir) / f"{self._cur_lot}_{self._lots[self._cur_lot]}")
+        else:
+            new_path = None
+        if new_path != self.art_path:
+            self.art_path = new_path
+            self.art_token += 1
+            return True
+        return False
 
     @staticmethod
     async def _drain(reader) -> None:

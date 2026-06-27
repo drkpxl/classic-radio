@@ -53,11 +53,10 @@ This is now the only remaining phase-sized feature.
   likely RF range and/or **BT ↔ 2.4 GHz Wi-Fi coexistence** on the shared CYW43455
   (flagged as a spike risk). Mitigations: move the speaker closer, put Wi-Fi on the
   5 GHz band, or use the (deferred) 3.5 mm jack. Not a code bug.
-- **HD album-art bleed** — `nrsc5` dumps LOT image files for *all* subchannels, so
-  the "newest image" heuristic can briefly show another program's art. Needs proper
-  art→program association. *(web-UI correctness)*
-- **Weak NOAA weather reception** here — NBFM recipe / antenna to investigate
-  (may be antenna/location, not software).
+- ~~**HD album-art bleed**~~ — FIXED: art now follows the `XHDR` lot (the tuned
+  program's current cover-art id), mapped against `LOT file:` images, clearing on
+  `-1` (station-ID). No more HD3/promo-tile bleed. Verified live (no art on
+  station-ID; correct art on a song). Mechanism notes in `fmradiod/metadata.py`.
 
 ## 🟢 Remaining — TFT display polish (deferred non-goals)
 
