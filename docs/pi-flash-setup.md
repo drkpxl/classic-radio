@@ -55,8 +55,8 @@ Why these matter:
 ## 3. `dietpi-wifi.txt` — WiFi credentials
 
 ```ini
-aWIFI_SSID[0]='Homestead'
-aWIFI_KEY[0]='<YOURS>'        # ◄ WiFi password — SET THIS
+aWIFI_SSID[0]='<YOUR_WIFI_SSID>'   # ◄ your network name — SET THIS
+aWIFI_KEY[0]='<YOURS>'             # ◄ WiFi password — SET THIS
 aWIFI_KEYMGR[0]='WPA-PSK'
 ```
 
