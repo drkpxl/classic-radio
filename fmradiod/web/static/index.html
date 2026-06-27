@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>fmradiod</title>
+<title>HubertFM</title>
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
@@ -145,6 +145,37 @@
   .bt-row button.bt-forget { background: none; color: #9c5a2b; padding: 5px 4px; }
   .bt-empty { font-size: 11px; opacity: 0.6; padding: 8px 2px; }
   [hidden] { display: none !important; }
+
+  /* Quality floor: visible keyboard focus + respect reduced motion */
+  button:focus-visible { outline: 2px solid #2f6db0; outline-offset: 2px; border-radius: 6px; }
+  @media (prefers-reduced-motion: reduce) {
+    .power.on .led { animation: none; }
+    .needle, .preset { transition: none; }
+  }
+
+  /* Mobile: stack the cabinet into one column, reclaim width, grow tap targets.
+     The retro look is preserved — the speaker becomes a compact strip on top. */
+  @media (max-width: 560px) {
+    body { padding: 14px 10px; align-items: flex-start; }
+    .radio { padding: 16px 14px; border-radius: 20px; }
+    .face { flex-direction: column; gap: 14px; }
+    .speaker { flex: none; min-height: 150px; padding: 12px; }
+    .art { max-height: 150px; }
+    .panel { gap: 12px; }
+    .presets { gap: 8px; }
+    .preset { padding: 13px 4px 12px; }          /* ~52px tall tap target */
+    .btbtn { padding: 4px 2px; font-size: 10px; }
+    .btbtn .bticon { font-size: 14px; }
+    .power { padding: 8px 2px; }
+    .footrow { padding-top: 6px; }
+    .np-title { font-size: 16px; }
+    /* Modal fits short screens; device actions are finger-sized */
+    .bt-modal { max-height: 88vh; overflow-y: auto; }
+    .bt-out button { padding: 11px 4px; }
+    .bt-scan { padding: 9px 16px; }
+    .bt-row { padding: 9px 10px; }
+    .bt-row button { padding: 9px 12px; }
+  }
 </style>
 </head>
 <body>
@@ -153,7 +184,7 @@
       <div class="speaker">
         <div class="grille" id="grille"></div>
         <img class="art" id="art" alt="album art">
-        <div class="badge">fmradiod</div>
+        <div class="badge">HubertFM</div>
       </div>
 
       <div class="panel">

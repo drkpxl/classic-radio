@@ -45,8 +45,9 @@ This is now the only remaining phase-sized feature.
 
 ## 🟡 Remaining — known bugs / limitations
 
-- **Mobile web-UI fixes** *(requested)* — the retro web UI needs responsive/touch
-  polish for phones (layout, tap targets, viewport). Specifics TBD with the user.
+- ~~**Mobile web-UI fixes**~~ — DONE: the cabinet stacks to one column on phones
+  (≤560px), bigger tap targets, modal scrolls; + keyboard-focus & reduced-motion.
+  Also rebranded the badge/title to **HubertFM**.
 - **Bluetooth audio can skip/buffer** — observed in the field; CPU is fine (htop
   reasonable) and the web stream is smooth, so it's the **A2DP link**, not software:
   likely RF range and/or **BT ↔ 2.4 GHz Wi-Fi coexistence** on the shared CYW43455
