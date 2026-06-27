@@ -47,6 +47,11 @@ This is now the only remaining phase-sized feature.
 
 - **Mobile web-UI fixes** *(requested)* — the retro web UI needs responsive/touch
   polish for phones (layout, tap targets, viewport). Specifics TBD with the user.
+- **Bluetooth audio can skip/buffer** — observed in the field; CPU is fine (htop
+  reasonable) and the web stream is smooth, so it's the **A2DP link**, not software:
+  likely RF range and/or **BT ↔ 2.4 GHz Wi-Fi coexistence** on the shared CYW43455
+  (flagged as a spike risk). Mitigations: move the speaker closer, put Wi-Fi on the
+  5 GHz band, or use the (deferred) 3.5 mm jack. Not a code bug.
 - **HD album-art bleed** — `nrsc5` dumps LOT image files for *all* subchannels, so
   the "newest image" heuristic can briefly show another program's art. Needs proper
   art→program association. *(web-UI correctness)*
