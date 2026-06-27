@@ -126,7 +126,7 @@ compile and test interactively in Phase 2, not bake into an unattended boot.
 | Password | File | Line |
 |----------|------|------|
 | **Login** (root + dietpi, also your SSH password) | `dietpi.txt` | `AUTO_SETUP_GLOBAL_PASSWORD=` |
-| **WiFi** (for `Homestead`)                         | `dietpi-wifi.txt` | `aWIFI_KEY[0]=''` (between the quotes) |
+| **WiFi** (for your network)                        | `dietpi-wifi.txt` | `aWIFI_KEY[0]=''` (between the quotes) |
 
 ---
 
