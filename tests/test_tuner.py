@@ -96,13 +96,13 @@ class FakeMeta:
         self.stops += 1
 
 
-def make_tuner(tmp_path, tracker, meta=None, backoff=0.0, signal_timeout=5.0):
+def make_tuner(tmp_path, tracker, meta=None, backoff=0.0, signal_timeout=5.0, max_retries=3):
     return Tuner(
         Ring(list(PRESETS)), AUDIO, SDR, FanOut(), EventBus(),
         StateStore(tmp_path / "state.json"),
         backends=BACKENDS, spawn=tracker.spawn, metadata=meta or FakeMeta(),
         aas_root=str(tmp_path), default_index=0, retry_backoff=backoff,
-        signal_timeout=signal_timeout,
+        signal_timeout=signal_timeout, max_retries=max_retries,
     )
 
 
@@ -273,14 +273,31 @@ async def test_output_mode_persisted(tmp_path):
     await tuner.stop()
 
 
-async def test_bluetooth_drop_falls_back_to_web(tmp_path):
+async def test_bluetooth_drop_falls_back_to_web_keeping_intent(tmp_path):
+    # max_retries=0 so a single drop exhausts retries immediately and falls back.
     t = SpawnTracker()
-    tuner = make_tuner(tmp_path, t, backoff=0.0)
+    tuner = make_tuner(tmp_path, t, backoff=0.0, max_retries=0)
     tuner.set_bt_sink(MAC)
     await tuner.set_output("bluetooth")
     assert tuner.output == "bluetooth"
     t.groups[-1].crash()                   # speaker drops → aplay/ffmpeg exit
     await asyncio.sleep(0.05)
-    assert tuner.output == "web"           # fell back, not retried on the dead sink
+    assert tuner.output == "web"           # runtime fell back to web
     assert len(t.groups[-1].pipeline) == 2  # the new pipeline is the web (MP3) tail
+    # but the persisted INTENT stays bluetooth so a reboot retries the speaker
+    assert StateStore(tmp_path / "state.json").load_output() == "bluetooth"
+    await tuner.stop()
+
+
+async def test_bluetooth_transient_failure_retries_before_fallback(tmp_path):
+    # With retries available, a single BT pipeline exit retries on bluetooth (the
+    # post-reconnect transport hiccup), it does NOT immediately drop to web.
+    t = SpawnTracker()
+    tuner = make_tuner(tmp_path, t, backoff=0.0, max_retries=3)
+    tuner.set_bt_sink(MAC)
+    await tuner.set_output("bluetooth")
+    t.groups[-1].crash()
+    await asyncio.sleep(0.05)
+    assert tuner.output == "bluetooth"          # still trying the speaker
+    assert t.groups[-1].pipeline[-1][0] == "aplay"  # retried the BT pipeline
     await tuner.stop()

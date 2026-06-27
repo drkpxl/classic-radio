@@ -7,6 +7,7 @@ UI reads `/api/state` and subscribes to `/api/events` so it mirrors daemon state
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -73,6 +74,10 @@ def create_app(tuner, fanout, metadata, bus, static_dir: str, renderer=None,
     def _require_bt():
         return bluetooth is not None
 
+    def _is_connected(mac):
+        return any(d["mac"] == mac and d["connected"]
+                   for d in bluetooth.state().get("devices", []))
+
     async def bt_scan(request):
         if not _require_bt():
             return JSONResponse({"error": "bluetooth unavailable"}, status_code=409)
@@ -88,19 +93,27 @@ def create_app(tuner, fanout, metadata, bus, static_dir: str, renderer=None,
         mac = request.path_params["mac"]
         if action not in ("pair", "connect", "disconnect", "forget"):
             return JSONResponse({"error": "unknown action"}, status_code=404)
-        try:
-            await getattr(bluetooth, action)(mac)
-        except Exception as exc:
-            return JSONResponse({"error": f"{action} failed: {exc}"}, status_code=502)
-        # Selecting a speaker routes audio to it; dropping it returns to the web.
         if action == "connect":
+            # A connect on an already-connected (auto-reconnected) speaker can raise
+            # "already connected" — tolerate it and decide from the resulting state.
+            try:
+                await bluetooth.connect(mac)
+            except Exception:
+                log.warning("connect(%s) raised; checking state", mac, exc_info=True)
+            if not _is_connected(mac):
+                return JSONResponse({"error": "connect failed"}, status_code=502)
             tuner.set_bt_sink(mac)
             tuner.state.save_device(mac)
-            await tuner.set_output("bluetooth")
-        elif action in ("disconnect", "forget"):
-            if tuner.output == "bluetooth":
-                await tuner.set_output("web")
-            tuner.set_bt_sink(None)
+            await tuner.set_output("bluetooth")   # selecting a speaker routes audio to it
+        else:
+            try:
+                await getattr(bluetooth, action)(mac)
+            except Exception as exc:
+                return JSONResponse({"error": f"{action} failed: {exc}"}, status_code=502)
+            if action in ("disconnect", "forget"):
+                if tuner.output == "bluetooth":
+                    await tuner.set_output("web")
+                tuner.set_bt_sink(None)
         bus.publish({"type": "bluetooth"})
         return JSONResponse(_state())
 
@@ -123,23 +136,57 @@ def create_app(tuner, fanout, metadata, bus, static_dir: str, renderer=None,
             return Response(status_code=404)
         return FileResponse(path)
 
+    def _on_bt_change():
+        # Keep the tuner's BT sink in lockstep with the actual connection so output
+        # switching works even for a speaker BlueZ auto-reconnected, and a drop
+        # clears it. Then re-derive full state for every surface (one render path).
+        if bluetooth is not None:
+            tuner.set_bt_sink(bluetooth.state().get("connected"))
+        bus.publish({"type": "bluetooth"})
+
+    async def _route_to(mac):
+        tuner.set_bt_sink(mac)
+        try:
+            await tuner.set_output("bluetooth")
+        except Exception:
+            log.warning("could not switch to bluetooth output", exc_info=True)
+
+    async def _retry_restore(last, attempts=6):
+        # A speaker can take a second or two to (re)connect after a restart, so the
+        # connection may not be live at startup — poll briefly in the background so
+        # we don't block serving, then route once it's up.
+        for _ in range(attempts):
+            await asyncio.sleep(1)
+            try:
+                await bluetooth.connect(last)
+            except Exception:
+                pass
+            if _is_connected(last):
+                await _route_to(last)
+                return
+        log.warning("auto-reconnect: %s did not connect; staying on web output", last)
+
     async def _start_bluetooth():
         """Power on, register the agent, and restore the last speaker + output —
         fail-soft: any failure logs and leaves the daemon on the web output."""
-        bluetooth.set_on_change(lambda: bus.publish({"type": "bluetooth"}))
+        bluetooth.set_on_change(_on_bt_change)
         try:
             await bluetooth.start()
         except Exception:
             log.warning("bluetooth enabled but failed to start; web output only", exc_info=True)
             return
-        last = tuner.state.load_device()
-        if last and tuner.state.load_output("web") == "bluetooth":
-            try:
-                await bluetooth.connect(last)
-                tuner.set_bt_sink(last)
-                await tuner.set_output("bluetooth")
-            except Exception:
-                log.warning("could not auto-reconnect %s; staying on web", last, exc_info=True)
+        # Restore bluetooth output if that's how we were left and the speaker is there.
+        if tuner.state.load_output("web") == "bluetooth":
+            last = tuner.state.load_device()
+            if last:
+                try:
+                    await bluetooth.connect(last)
+                except Exception:
+                    log.warning("auto-reconnect of %s failed", last, exc_info=True)
+                if _is_connected(last):          # already up → route now (deterministic)
+                    await _route_to(last)
+                else:                            # not yet → keep trying off the startup path
+                    asyncio.ensure_future(_retry_restore(last))
 
     @asynccontextmanager
     async def lifespan(app):

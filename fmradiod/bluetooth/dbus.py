@@ -127,7 +127,12 @@ class DbusBluetoothController(BluetoothController):
             await dev.set_trusted(True)
         except Exception:
             pass
-        await dev.call_connect()
+        try:
+            await dev.call_connect()
+        except Exception:
+            # BlueZ raises "Already Connected" for an auto-reconnected speaker —
+            # not an error for us. Refresh so the cache reflects reality regardless.
+            log.warning("connect(%s) raised (may already be connected)", mac, exc_info=True)
         await self._refresh()
 
     async def disconnect(self, mac: str) -> None:

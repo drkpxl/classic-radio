@@ -151,6 +151,32 @@ def test_output_bluetooth_without_device_conflicts(tmp_path):
         assert c.post("/api/output/bluetooth").status_code == 409
 
 
+def test_bluetooth_output_restored_on_startup(tmp_path):
+    # Persisted output=bluetooth + last_device + a connected speaker → the lifespan
+    # restores bluetooth output on boot.
+    from fmradiod.bluetooth.controller import FakeBluetoothController
+    st = StateStore(tmp_path / "state.json")
+    st.save_output("bluetooth")
+    st.save_device("AA:1")
+    bus = EventBus()
+    fanout = FanOut()
+    metadata = Metadata(bus)
+    tuner = Tuner(
+        Ring(list(PRESETS)), AudioConfig("256k", 48000, 2), SdrConfig("auto", 0),
+        fanout, bus, st, backends=BACKENDS, spawn=fake_spawn, metadata=metadata,
+        aas_root=str(tmp_path),
+    )
+    static = tmp_path / "static"
+    static.mkdir()
+    (static / "index.html").write_text("<html>radio</html>")
+    ctrl = FakeBluetoothController(seed=[{"mac": "AA:1", "name": "Echo", "paired": True, "connected": True}])
+    app = create_app(tuner, fanout, metadata, bus, str(static), bluetooth=ctrl)
+    with TestClient(app) as c:
+        s = c.get("/api/state").json()
+        assert s["output"] == "bluetooth"
+        assert s["bluetooth"]["connected"] == "AA:1"
+
+
 def test_bluetooth_start_failure_is_failsoft(tmp_path):
     # If the controller can't start (bus down), the lifespan must log + continue;
     # the daemon serves web normally and tuning still works.

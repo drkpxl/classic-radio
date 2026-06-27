@@ -173,22 +173,23 @@ class Tuner:
         if group.stopped or group is not self._group:
             return  # intentional teardown / superseded
         # Unexpected exit.
-        if self.output == "bluetooth":
-            # Likely the speaker dropped (aplay/ffmpeg ALSA write failed). Fall back
-            # to the web output rather than retrying a dead sink — audio is never
-            # left silently dead. The controller reconciles the BT connection.
-            self.output = "web"
-            self.state.save_output("web")
-            self.status = "error"
-            self.bus.publish(self.snapshot())
-            await self.tune(index)
-            return
         self.status = "error"
         self.bus.publish(self.snapshot())
         if attempt < self._max_retries:
+            # Retry the same pipeline with backoff. For bluetooth this also absorbs
+            # a transient post-(re)connect hiccup where the A2DP transport isn't
+            # openable for a second or two even though the device reports connected.
             if self._retry_backoff:
                 await asyncio.sleep(self._retry_backoff)
             await self.tune(index, _attempt=attempt + 1)
+            return
+        # Retries exhausted. On bluetooth the speaker seems genuinely gone — fall
+        # back to the web output at runtime so audio is never silently dead, but
+        # KEEP the persisted intent as bluetooth so a reboot retries the speaker.
+        if self.output == "bluetooth":
+            self.output = "web"
+            self.bus.publish(self.snapshot())
+            await self.tune(index)
 
     async def _watch_signal(self, group, first_data) -> None:
         """If no audio arrives within the timeout, surface a no-signal status."""
