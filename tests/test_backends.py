@@ -68,3 +68,27 @@ def test_auto_gain_and_zero_ppm_omit_flags():
     src, _ = AnalogBackend().build_command(Preset("a", "analog", 97.3), AUDIO, SDR_AUTO)
     assert "-g" not in src
     assert "-p" not in src
+
+
+SINK = "bluealsa:DEV=50:99:5A:21:F8:BB,PROFILE=a2dp"
+
+
+def test_bluetooth_output_is_three_stage_aplay_pipeline():
+    cmds = AnalogBackend().build_command(
+        Preset("KBCO", "analog", 97.3), AUDIO, SDR_AUTO, alsa_sink=SINK
+    )
+    assert len(cmds) == 3
+    src, ff, ap = cmds
+    assert src[0] == "rtl_fm"
+    # ffmpeg emits uniform WAV to the pipe (no MP3 re-encode on the BT path)
+    assert ff[0] == "ffmpeg"
+    assert ff[-7:] == ["-ar", "48000", "-ac", "2", "-f", "wav", "pipe:1"]
+    assert "libmp3lame" not in ff
+    # final stage streams to the connected speaker's bluealsa A2DP sink
+    assert ap == ["aplay", "-q", "-D", SINK, "-"]
+
+
+def test_web_output_unchanged_when_no_sink():
+    cmds = AnalogBackend().build_command(Preset("a", "analog", 97.3), AUDIO, SDR_AUTO)
+    assert len(cmds) == 2
+    assert cmds[1][-len(UNIFORM_OUT_TAIL):] == UNIFORM_OUT_TAIL

@@ -93,6 +93,116 @@ def build(tmp_path):
     return app, tuner, metadata
 
 
+def build_bt(tmp_path, seed=None, discoverable=None):
+    from fmradiod.bluetooth.controller import FakeBluetoothController
+    bus = EventBus()
+    fanout = FanOut()
+    metadata = Metadata(bus)
+    tuner = Tuner(
+        Ring(list(PRESETS)), AudioConfig("256k", 48000, 2), SdrConfig("auto", 0),
+        fanout, bus, StateStore(tmp_path / "state.json"),
+        backends=BACKENDS, spawn=fake_spawn, metadata=metadata, aas_root=str(tmp_path),
+    )
+    static = tmp_path / "static"
+    static.mkdir()
+    (static / "index.html").write_text("<html>radio</html>")
+    ctrl = FakeBluetoothController(seed=seed, discoverable=discoverable)
+    app = create_app(tuner, fanout, metadata, bus, str(static), bluetooth=ctrl)
+    return app, tuner, ctrl
+
+
+BT_SEED = [{"mac": "AA:1", "name": "Echo", "paired": True, "connected": False}]
+
+
+def test_bt_disabled_state_and_endpoints(tmp_path):
+    app, _, _ = build(tmp_path)  # no controller
+    with TestClient(app) as c:
+        assert c.get("/api/state").json()["bluetooth"]["enabled"] is False
+        assert c.get("/api/state").json()["output"] == "web"
+        assert c.post("/api/bt/scan/on").status_code == 409
+
+
+def test_bt_scan_surfaces_devices(tmp_path):
+    app, _, _ = build_bt(tmp_path, discoverable=[{"mac": "BB:2", "name": "JBL", "paired": False, "connected": False}])
+    with TestClient(app) as c:
+        c.post("/api/bt/scan/on")
+        s = c.get("/api/state").json()
+        assert s["bluetooth"]["scanning"] is True
+        assert any(d["mac"] == "BB:2" for d in s["bluetooth"]["devices"])
+
+
+def test_bt_connect_switches_output_and_back(tmp_path):
+    app, tuner, ctrl = build_bt(tmp_path, seed=BT_SEED)
+    with TestClient(app) as c:
+        s = c.get("/api/state").json()
+        assert s["bluetooth"]["enabled"] is True
+        assert [d["mac"] for d in s["bluetooth"]["devices"]] == ["AA:1"]
+        r = c.post("/api/bt/connect/AA:1").json()
+        assert r["bluetooth"]["connected"] == "AA:1"
+        assert r["output"] == "bluetooth"
+        r2 = c.post("/api/bt/disconnect/AA:1").json()
+        assert r2["output"] == "web"
+        assert r2["bluetooth"]["connected"] is None
+
+
+def test_output_bluetooth_without_device_conflicts(tmp_path):
+    app, _, _ = build_bt(tmp_path)  # no devices connected
+    with TestClient(app) as c:
+        assert c.post("/api/output/bluetooth").status_code == 409
+
+
+def test_bluetooth_output_restored_on_startup(tmp_path):
+    # Persisted output=bluetooth + last_device + a connected speaker → the lifespan
+    # restores bluetooth output on boot.
+    from fmradiod.bluetooth.controller import FakeBluetoothController
+    st = StateStore(tmp_path / "state.json")
+    st.save_output("bluetooth")
+    st.save_device("AA:1")
+    bus = EventBus()
+    fanout = FanOut()
+    metadata = Metadata(bus)
+    tuner = Tuner(
+        Ring(list(PRESETS)), AudioConfig("256k", 48000, 2), SdrConfig("auto", 0),
+        fanout, bus, st, backends=BACKENDS, spawn=fake_spawn, metadata=metadata,
+        aas_root=str(tmp_path),
+    )
+    static = tmp_path / "static"
+    static.mkdir()
+    (static / "index.html").write_text("<html>radio</html>")
+    ctrl = FakeBluetoothController(seed=[{"mac": "AA:1", "name": "Echo", "paired": True, "connected": True}])
+    app = create_app(tuner, fanout, metadata, bus, str(static), bluetooth=ctrl)
+    with TestClient(app) as c:
+        s = c.get("/api/state").json()
+        assert s["output"] == "bluetooth"
+        assert s["bluetooth"]["connected"] == "AA:1"
+
+
+def test_bluetooth_start_failure_is_failsoft(tmp_path):
+    # If the controller can't start (bus down), the lifespan must log + continue;
+    # the daemon serves web normally and tuning still works.
+    from fmradiod.bluetooth.controller import FakeBluetoothController
+
+    class BoomController(FakeBluetoothController):
+        async def start(self):
+            raise RuntimeError("bus down")
+
+    bus = EventBus()
+    fanout = FanOut()
+    metadata = Metadata(bus)
+    tuner = Tuner(
+        Ring(list(PRESETS)), AudioConfig("256k", 48000, 2), SdrConfig("auto", 0),
+        fanout, bus, StateStore(tmp_path / "state.json"),
+        backends=BACKENDS, spawn=fake_spawn, metadata=metadata, aas_root=str(tmp_path),
+    )
+    static = tmp_path / "static"
+    static.mkdir()
+    (static / "index.html").write_text("<html>radio</html>")
+    app = create_app(tuner, fanout, metadata, bus, str(static), bluetooth=BoomController())
+    with TestClient(app) as c:
+        assert c.get("/api/state").status_code == 200
+        assert c.post("/api/tune/2").json()["preset"]["index"] == 2  # daemon still works
+
+
 def test_state_shape(tmp_path):
     app, tuner, md = build(tmp_path)
     with TestClient(app) as c:

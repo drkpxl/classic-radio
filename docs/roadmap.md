@@ -33,34 +33,13 @@ BT path** — there's no spare port for a dongle.
 Make the radio audible from the Pi's own headphone jack, not just the web stream.
 Needs a **local playback path** off the same demod/encoder (e.g. `ffmpeg → ALSA`)
 plus daemon/web control to pick the active output. `dtparam` audio enable is
-already noted in `pi-flash-setup.md`. **Related to the Bluetooth item below — both
-are "local output sinks" and should share one output-routing abstraction.**
+already noted in `pi-flash-setup.md`. **Reuses the output-router seam built for
+Bluetooth** (the tuner's `output` mode) — the jack becomes a third sink alongside
+`web` and `bluetooth`, so this is mostly a new ALSA tail + a UI/control option.
+This is now the only remaining phase-sized feature.
 
-### 2. Bluetooth speaker output  *(new — requested)*
-Stream the live radio to a paired Bluetooth speaker, managed **from the web UI**,
-using open-source Bluetooth tooling.
-
-- **Scope:** scan / pair / connect / disconnect a BT speaker from the web UI;
-  choose the active audio output (web stream · 3.5 mm jack · BT speaker); show
-  connection status; remember the last speaker and auto-reconnect on boot.
-- **Open-source tooling (Linux/Pi):**
-  - **BlueZ** — the Linux Bluetooth stack; discovery + pairing via `bluetoothctl`
-    or its D-Bus API (the daemon would drive the D-Bus API rather than shell out).
-  - **A2DP audio routing** — one of:
-    - **bluez-alsa (`bluealsa`)** — lightweight A2DP sink with no PulseAudio/PipeWire
-      dependency; well-suited to a headless appliance (likely first choice).
-    - **PipeWire + WirePlumber** — heavier but increasingly the modern default;
-      richer routing if we also want the 3.5 mm sink managed the same way.
-  - Uses the Pi 3A+'s **onboard BT** (no USB dongle — the USB port is the SDR's).
-- **Architecture fit:** add a BT-management module to `fmradiod` (D-Bus to BlueZ),
-  new web API endpoints + UI controls, and a local decode→sink path
-  (`ffmpeg → ALSA → bluealsa A2DP`). The daemon stays the single source of truth;
-  output selection rides the same EventBus so the TFT/web reflect it.
-- **Open questions / risks:** `bluealsa` vs PipeWire on DietPi; A2DP/SBC latency
-  and whether lip-sync matters (it doesn't for radio); pairing UX over a web UI
-  (PIN/just-works); reconnect/handover when the speaker drops; CPU headroom on the
-  3A+ (SDR demod already uses ~1 core). **Needs its own `derisk-*` spike before a
-  full change** — confirm the BlueZ + bluealsa A2DP path works headless on this Pi.
+<!-- Bluetooth speaker output shipped — see the Done list above and
+     docs/bluetooth-spike.md (derisk) + docs/bluetooth-output-build.md (build). -->
 
 ---
 

@@ -65,6 +65,15 @@ class ButtonsConfig:
 
 
 @dataclass(frozen=True)
+class BluetoothConfig:
+    # Optional A2DP Bluetooth speaker output via BlueZ + bluez-alsa. Off by
+    # default so the dev Mac (no system bus / no BlueZ) and any Pi without it
+    # run unchanged. When on, the daemon manages pairing/connection over D-Bus
+    # and can route audio to the connected speaker (exclusive with the web output).
+    enabled: bool = False
+
+
+@dataclass(frozen=True)
 class Preset:
     label: str
     mode: str
@@ -81,6 +90,7 @@ class Config:
     presets: list[Preset]
     display: DisplayConfig = DisplayConfig()
     buttons: ButtonsConfig = ButtonsConfig()
+    bluetooth: BluetoothConfig = BluetoothConfig()
 
 
 def _require(mapping: dict, key: str, where: str):
@@ -158,6 +168,15 @@ def _buttons_from(raw) -> ButtonsConfig:
                          debounce_ms=debounce_ms, poll_ms=poll_ms)
 
 
+def _bluetooth_from(raw) -> BluetoothConfig:
+    # The whole block is optional; missing/None keeps Bluetooth off.
+    if raw is None:
+        return BluetoothConfig()
+    if not isinstance(raw, dict):
+        raise ConfigError("config: 'bluetooth' must be a mapping")
+    return BluetoothConfig(enabled=bool(raw.get("enabled", False)))
+
+
 def load_config(path: str | Path) -> Config:
     path = Path(path)
     try:
@@ -204,6 +223,7 @@ def load_config(path: str | Path) -> Config:
 
     display = _display_from(data.get("display"))
     buttons = _buttons_from(data.get("buttons"))
+    bluetooth = _bluetooth_from(data.get("bluetooth"))
 
     return Config(server=server, sdr=sdr, audio=audio, defaults=defaults,
-                  presets=presets, display=display, buttons=buttons)
+                  presets=presets, display=display, buttons=buttons, bluetooth=bluetooth)

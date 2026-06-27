@@ -104,6 +104,47 @@
     box-shadow: 0 0 10px 2px rgba(255,70,40,0.85), inset 0 1px 1px rgba(255,255,255,0.5); animation: glow 2.6s ease-in-out infinite; }
   @keyframes glow { 0%,100% { box-shadow: 0 0 8px 2px rgba(255,70,40,0.7);} 50% { box-shadow: 0 0 13px 4px rgba(255,90,55,1);} }
   .status { font-size: 9px; letter-spacing: 1px; opacity: 0.7; color: #f4e2c4; margin-left: 6px; }
+
+  /* Speaker icon in the dial band (repurposed from the old AM indicator) */
+  .btbtn { border: none; background: none; font: inherit; cursor: pointer; padding: 0;
+    display: flex; align-items: center; gap: 4px; color: #7a5a22; font-weight: 700;
+    font-size: 9px; letter-spacing: 1px; max-width: 60%; }
+  .btbtn .bticon { font-size: 12px; line-height: 1; filter: grayscale(0.3); }
+  .btbtn.connected { color: #2f6db0; }
+  .btbtn .btname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Bluetooth modal */
+  .bt-overlay { position: fixed; inset: 0; background: rgba(20,12,4,0.55);
+    display: flex; align-items: center; justify-content: center; z-index: 50; padding: 20px; }
+  .bt-modal { width: 360px; max-width: 100%; border-radius: 14px; padding: 16px 16px 18px;
+    background: linear-gradient(180deg, #f7eecb 0%, #e7d49a 100%); color: #5a4220;
+    box-shadow: 0 20px 50px rgba(40,25,10,0.5), inset 0 1px 0 rgba(255,255,255,0.6);
+    font-family: inherit; }
+  .bt-head { display: flex; justify-content: space-between; align-items: center;
+    font-weight: 800; font-size: 14px; letter-spacing: .5px; margin-bottom: 12px; }
+  .bt-x { border: none; background: none; font-size: 22px; line-height: 1; cursor: pointer; color: #6e4d18; }
+  .bt-out { display: flex; gap: 8px; margin-bottom: 12px; }
+  .bt-out button { flex: 1; border: none; cursor: pointer; border-radius: 7px; padding: 7px 4px;
+    font: inherit; font-size: 11px; font-weight: 700; background: #d8c39a; color: #5a4220;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.6); }
+  .bt-out button.sel { background: #2f6db0; color: #fff; }
+  .bt-out button[disabled] { opacity: 0.45; cursor: default; }
+  .bt-scanrow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: 700; font-size: 12px; }
+  .bt-scan { border: none; cursor: pointer; border-radius: 6px; padding: 5px 12px; font: inherit;
+    font-size: 11px; font-weight: 700; background: #c2aa78; color: #3d2c12; }
+  .bt-scan.scanning { background: #2f6db0; color: #fff; }
+  .bt-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
+  .bt-row { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.4);
+    border-radius: 7px; padding: 7px 9px; }
+  .bt-row .bt-dev { flex: 1; min-width: 0; }
+  .bt-row .bt-dn { font-weight: 700; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bt-row .bt-st { font-size: 9px; letter-spacing: 1px; opacity: 0.7; }
+  .bt-row.connected .bt-st { color: #2f6db0; opacity: 1; font-weight: 700; }
+  .bt-row button { border: none; cursor: pointer; border-radius: 6px; padding: 5px 9px; font: inherit;
+    font-size: 10px; font-weight: 700; background: #d8c39a; color: #5a4220; }
+  .bt-row button.bt-forget { background: none; color: #9c5a2b; padding: 5px 4px; }
+  .bt-empty { font-size: 11px; opacity: 0.6; padding: 8px 2px; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -117,7 +158,7 @@
 
       <div class="panel">
         <div class="dial">
-          <div class="band"><span>FM MHz</span><span id="wxlabel"></span></div>
+          <div class="band"><span>FM MHz</span><button class="btbtn" id="btBtn" title="Bluetooth speaker" hidden><span class="bticon">🔊</span><span class="btname" id="btName"></span></button></div>
           <div class="scale">
             <div class="ticks">
               <span class="num">88</span><span class="num">92</span><span class="num">96</span>
@@ -145,6 +186,25 @@
 
   <audio id="player" preload="none"></audio>
 
+  <!-- Bluetooth scan/select modal (opened from the speaker icon on the dial) -->
+  <div class="bt-overlay" id="btOverlay" hidden>
+    <div class="bt-modal" role="dialog" aria-label="Bluetooth speaker">
+      <div class="bt-head">
+        <span>🔊 Bluetooth speaker</span>
+        <button class="bt-x" id="btClose" aria-label="Close">×</button>
+      </div>
+      <div class="bt-out" id="btOut">
+        <button data-out="web">Listen here</button>
+        <button data-out="bluetooth">On speaker</button>
+      </div>
+      <div class="bt-scanrow">
+        <span id="btScanLabel">Devices</span>
+        <button class="bt-scan" id="btScan">Scan</button>
+      </div>
+      <div class="bt-list" id="btList"></div>
+    </div>
+  </div>
+
 <script>
   const els = {
     presets: document.getElementById('presets'),
@@ -155,13 +215,21 @@
     art: document.getElementById('art'),
     grille: document.getElementById('grille'),
     wxtag: document.getElementById('wxtag'),
-    wxlabel: document.getElementById('wxlabel'),
     power: document.getElementById('power'),
     powerText: document.getElementById('powerText'),
     player: document.getElementById('player'),
+    btBtn: document.getElementById('btBtn'),
+    btName: document.getElementById('btName'),
+    btOverlay: document.getElementById('btOverlay'),
+    btClose: document.getElementById('btClose'),
+    btScan: document.getElementById('btScan'),
+    btList: document.getElementById('btList'),
+    btOut: document.getElementById('btOut'),
   };
 
   let ringLen = 0;
+  let lastBt = { enabled: false, scanning: false, devices: [], connected: null };
+  let lastOutput = 'web';
 
   function tagFor(p) {
     if (p.mode === 'weather') return 'WX';
@@ -190,12 +258,10 @@
   function setNeedle(preset) {
     if (preset.mode === 'weather') {
       els.wxtag.style.display = 'block';
-      els.wxlabel.textContent = '162.55 WX';
       els.needle.style.left = '50%';
       els.needle.style.opacity = '0.25';
     } else {
       els.wxtag.style.display = 'none';
-      els.wxlabel.textContent = 'AM kHz';
       els.needle.style.opacity = '1';
       const f = Math.min(108, Math.max(88, Number(preset.freq)));
       els.needle.style.left = (8 + ((f - 88) / 20) * 84) + '%';
@@ -223,7 +289,95 @@
       els.art.style.display = 'none';
       els.grille.style.display = 'block';
     }
+
+    lastBt = s.bluetooth || lastBt;
+    lastOutput = s.output || 'web';
+    renderBt();
   }
+
+  // ---- Bluetooth ----
+  function connectedDevice() { return (lastBt.devices || []).find(d => d.connected) || null; }
+
+  function renderBt() {
+    // The dial speaker icon: hidden unless Bluetooth is enabled; shows the
+    // connected speaker's name when on (icon + name), per the UX.
+    els.btBtn.hidden = !lastBt.enabled;
+    const dev = connectedDevice();
+    const onBt = lastOutput === 'bluetooth' && dev;
+    els.btBtn.classList.toggle('connected', !!onBt);
+    els.btName.textContent = onBt ? dev.name : '';
+    if (!els.btOverlay.hidden) renderModal();
+  }
+
+  function renderModal() {
+    els.btScan.classList.toggle('scanning', !!lastBt.scanning);
+    els.btScan.textContent = lastBt.scanning ? 'Scanning…' : 'Scan';
+    const hasConn = !!connectedDevice();
+    [...els.btOut.children].forEach(b => {
+      const mode = b.dataset.out;
+      b.classList.toggle('sel', lastOutput === mode);
+      b.disabled = (mode === 'bluetooth' && !hasConn);
+    });
+    const devices = lastBt.devices || [];
+    els.btList.innerHTML = '';
+    if (!devices.length) {
+      const e = document.createElement('div');
+      e.className = 'bt-empty';
+      e.textContent = lastBt.scanning ? 'Scanning for speakers…' : 'No devices. Tap Scan to find your speaker.';
+      els.btList.appendChild(e);
+      return;
+    }
+    devices.forEach(d => {
+      const row = document.createElement('div');
+      row.className = 'bt-row' + (d.connected ? ' connected' : '');
+      const st = d.connected ? 'CONNECTED' : (d.paired ? 'PAIRED' : 'FOUND');
+      row.innerHTML = '<div class="bt-dev"><div class="bt-dn"></div><div class="bt-st">' + st + '</div></div>';
+      row.querySelector('.bt-dn').textContent = d.name;
+      if (!d.paired) row.appendChild(mkBtn('Pair', () => btAction('pair', d.mac)));
+      else if (d.connected) row.appendChild(mkBtn('Disconnect', () => btAction('disconnect', d.mac)));
+      else row.appendChild(mkBtn('Connect', () => btAction('connect', d.mac)));
+      if (d.paired) {
+        const f = mkBtn('Forget', () => btAction('forget', d.mac));
+        f.className = 'bt-forget';
+        row.appendChild(f);
+      }
+      els.btList.appendChild(row);
+    });
+  }
+
+  function mkBtn(label, fn) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.addEventListener('click', fn);
+    return b;
+  }
+
+  async function btPost(path) {
+    try {
+      const r = await fetch(path, { method: 'POST' });
+      if (r.ok) applyState(await r.json());
+    } catch (e) {}
+  }
+  function btAction(action, mac) {
+    if (action === 'connect') startAudio();  // selecting a speaker is a user gesture
+    return btPost('/api/bt/' + action + '/' + mac);
+  }
+
+  els.btBtn.addEventListener('click', () => {
+    els.btOverlay.hidden = false;
+    renderModal();
+    if (!lastBt.scanning) btPost('/api/bt/scan/on');
+  });
+  els.btClose.addEventListener('click', () => {
+    if (lastBt.scanning) btPost('/api/bt/scan/off');
+    els.btOverlay.hidden = true;
+  });
+  els.btOverlay.addEventListener('click', (e) => { if (e.target === els.btOverlay) els.btClose.click(); });
+  els.btScan.addEventListener('click', () => btPost('/api/bt/scan/' + (lastBt.scanning ? 'off' : 'on')));
+  els.btOut.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b || b.disabled) return;
+    btPost('/api/output/' + b.dataset.out);
+  });
 
   // Autoplay is blocked, but any click is a valid user gesture — so a preset tap
   // also starts playback. Once playing, switching presets leaves the audio element
